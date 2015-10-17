@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"github.com/Benefactory/chronicle/walker"
 	"github.com/codegangsta/cli"
 )
 
@@ -11,6 +12,13 @@ func main() {
 	app.Name = "chronicle"
 	app.Version = "0.0.1"
 	app.Usage = "requirement management done right"
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "path",
+			Value: ".",
+			Usage: "Path to git repo. Default is current working directory",
+		},
+	}
 	app.Commands = []cli.Command{
 		{
 			Name:  "add",
@@ -35,10 +43,22 @@ func main() {
 			},
 		},
 		{
-			Name:  "commit",
-			Usage: "complete a task on the list",
+			Name:  "test",
+			Usage: "run test code and requirments",
 			Action: func(c *cli.Context) {
 				println("completed task: ", c.Args().First())
+			},
+		},
+		{
+			Name:  "commit",
+			Usage: "generate an chronicle report",
+			Action: func(c *cli.Context) {
+				if len(c.String("path")) > 0 {
+					walker.UpdateRepo(c.String("path"))
+				} else {
+					walker.UpdateRepo(".")
+				}
+
 			},
 		},
 		{
