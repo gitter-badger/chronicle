@@ -12,7 +12,10 @@ var walker Walker
 
 // Walker is a container for storing results and holding working struct like regex matchers.
 type Walker struct {
-	reqMatcher *regexp.Regexp
+	reqMatcher    *regexp.Regexp
+	diffOptions   *git.DiffOptions
+	diffDetail    git.DiffDetail
+	currentCommit git.Commit
 }
 
 // Wraper for regex matcher for .req file
@@ -25,6 +28,8 @@ func (w *Walker) reqMatchString(s string) bool {
 func UpdateRepo(repoPath string) {
 	walker = Walker{}
 	walker.reqMatcher, _ = regexp.Compile(".*\\.req")
+	diffOpt, _ := git.DefaultDiffOptions()
+	walker.diffOptions = &diffOpt
 
 	repo, err := git.OpenRepository(repoPath)
 	if err != nil {
@@ -58,6 +63,7 @@ func UpdateRepo(repoPath string) {
 }
 
 func crawlRepo(c *git.Commit) []*git.Oid {
+	walker.currentCommit = *c
 	var rootOid []*git.Oid
 	if c.ParentCount() == 0 {
 		// base case
@@ -75,17 +81,28 @@ func crawlRepo(c *git.Commit) []*git.Oid {
 	if err != nil {
 		log.Fatal(err)
 	}
-	currentTree.Walk(searchForReqFiles)
+	currentTree.Walk(indexReqFiles)
 
 	// Check if req->code have changed
 	// Check with parents commits tree, eg. c.Parent(i).Tree. <- OLD one c.Tree <- NEW one
+	for i := uint(0); i < c.ParentCount(); i++ {
+		parrentTree, err := c.Parent(i).Tree()
+		if err != nil {
+			log.Fatal(err)
+		}
+		diff, err := c.Owner().DiffTreeToTree(parrentTree, currentTree, walker.diffOptions)
+		if err != nil {
+			log.Fatal(err)
+		}
+		diff.ForEach(updateReqFromEachFile, walker.diffDetail)
+	}
 
 	// Check if there is a commit reference.
 
 	return rootOid
 }
 
-func searchForReqFiles(s string, entry *git.TreeEntry) int {
+func indexReqFiles(s string, entry *git.TreeEntry) int {
 
 	fmt.Println("Path to file:", s)
 	fmt.Println("Is .req file:", walker.reqMatchString(entry.Name))
@@ -94,4 +111,19 @@ func searchForReqFiles(s string, entry *git.TreeEntry) int {
 	fmt.Println("Type", entry.Type)
 	fmt.Println("")
 	return 0
+}
+
+func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEachHunkCallback, error) {
+	fmt.Println("EachFile", nbr)
+	return updateReqFromEachHunk, nil
+}
+
+func updateReqFromEachHunk(diffHunk git.DiffHunk) (git.DiffForEachLineCallback, error) {
+	fmt.Println("EachHunk")
+	return updateReqFromEachLine, nil
+}
+
+func updateReqFromEachLine(diffLine git.DiffLine) error {
+	fmt.Println(diffLine.Content)
+	return nil
 }
