@@ -1,7 +1,6 @@
 package requirments
 
 type tomlReq struct {
-	Test        Test
 	Component   []Component
 	Feature     []Feature
 	Module      []Module
@@ -16,7 +15,7 @@ type tomlReq struct {
 }
 
 type Entity struct {
-	id           string
+	Id           string
 	Status       string
 	Title        string
 	Author       []string
@@ -35,7 +34,19 @@ type Entity struct {
 	}
 }
 
+type Component struct {
+	Entity
+}
+
 type Feature struct {
+	Entity
+}
+
+type Format struct {
+	Entity
+}
+
+type Function struct {
 	Entity
 }
 
@@ -47,26 +58,10 @@ type Module struct {
 	Entity
 }
 
-type Function struct {
-	Entity
-}
-
 type Risk struct {
-	Entity
-}
-
-type Component struct {
 	Entity
 }
 
 type Stakeholder struct {
 	Entity
-}
-
-type Format struct {
-	Entity
-}
-
-type Test struct {
-	Framework string
 }

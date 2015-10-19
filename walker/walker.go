@@ -5,9 +5,11 @@ import (
 	"log"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	"github.com/Benefactory/chronicle/database"
 	"github.com/Benefactory/chronicle/requirments"
+	"github.com/boltdb/bolt"
 	"github.com/libgit2/git2go"
 )
 
@@ -27,7 +29,7 @@ func (w *Walker) reqMatchString(s string) bool {
 	return w.reqMatcher.MatchString(s)
 }
 
-// UpdateRepo updates the local requirment database by parsing the git-historyz
+// UpdateRepo updates the local requirment database by parsing the git-history.
 // The string points to the location of the git database and where to create chronicle database.
 func UpdateRepo(rootPath string, db *database.Database) {
 	walker = Walker{}
@@ -37,6 +39,14 @@ func UpdateRepo(rootPath string, db *database.Database) {
 	// Set resolution of diffs, 0 = file, 1 = Hunk, 2 = line by line
 	walker.diffDetail = git.DiffDetailLines
 	walker.db = db
+
+	db.DB.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("RootBucket"))
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+		return nil
+	})
 
 	repo, err := git.OpenRepository("." + string(filepath.Separator) + rootPath)
 	if err != nil {
@@ -66,6 +76,17 @@ func UpdateRepo(rootPath string, db *database.Database) {
 
 func crawlRepo(c *git.Commit) error {
 	walker.currentCommit = *c
+	walker.db.DB.Update(func(tx *bolt.Tx) error {
+		bRoot := tx.Bucket([]byte("RootBucket"))
+		fmt.Println("Zero", c.Author().When.Format(time.RFC3339))
+		bCurrentTime, err := bRoot.CreateBucketIfNotExists([]byte(c.Author().When.Format(time.RFC3339)))
+		if err != nil {
+			panic(err)
+		}
+		bCurrentTime.Put([]byte("commit"), []byte(c.Id().String()))
+		return err
+	})
+
 	if c.ParentCount() == 0 {
 		// base case
 		fmt.Println("Root", c.Id())
@@ -74,9 +95,9 @@ func crawlRepo(c *git.Commit) error {
 	for i := uint(0); i < c.ParentCount(); i++ {
 		fmt.Println("Not root", c.Id())
 		crawlRepo(c.Parent(i))
+		walker.currentCommit = *c
 	}
 	// Search for .req files
-	// -> Update database, new and removed req.
 	currentTree, err := c.Tree()
 	if err != nil {
 		log.Fatal(err)
@@ -96,7 +117,6 @@ func crawlRepo(c *git.Commit) error {
 		}
 		diff.ForEach(updateReqFromEachFile, walker.diffDetail)
 	}
-
 	// Check if there is a commit reference.
 	return nil
 }
@@ -110,7 +130,8 @@ func indexReqFiles(s string, entry *git.TreeEntry) int {
 	fmt.Println("Type", entry.Type)
 	fmt.Println("")
 	if walker.reqMatchString(entry.Name) {
-		requirments.ParseReqFile("./"+s+entry.Name, walker.db)
+		fmt.Println("First", walker.currentCommit.Author().When.Format(time.RFC3339))
+		requirments.ParseReqFile("./"+s+entry.Name, walker.db, walker.currentCommit.Author().When)
 	}
 	return 0
 }

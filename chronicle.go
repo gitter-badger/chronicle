@@ -60,12 +60,12 @@ func main() {
 			Action: func(c *cli.Context) {
 				var db *database.Database
 				if len(c.String("path")) > 0 {
-					db = database.NewDatabase("path")
 					setupChronicle(c.String("path"))
+					db = database.NewDatabase("path")
 					walker.UpdateRepo(c.String("path"), db)
 				} else {
-					db = database.NewDatabase("")
 					setupChronicle("")
+					db = database.NewDatabase("")
 					walker.UpdateRepo("", db)
 				}
 				db.Close()

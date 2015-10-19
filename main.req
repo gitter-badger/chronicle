@@ -1,7 +1,5 @@
-[test]
-  framework = "go"
-
 [[goal]]
+  id = "1"
   title = "communication improvment"
   status = "elicitated"
   author = ["elias@benefactory.se"]
@@ -13,30 +11,35 @@
     to = "F00002" # Commandline parser
 
 [[goal]]
+  id = "2"
   title = "Enforcing best practices"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = "Improve the requirement specification process by enforcing and assisting with the use of best practices."
 
 [[module]]
+  id = "3"
   title = "Commandline tool"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = "A tool used in the commandline target developers and tech oriented users."
 
 [[module]]
+  id = "4"
   title = "Desktop tool"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = "A desktop tool for the non-technical people"
 
 [[module]]
+  id = "5"
   title = "Webserver"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = 'An webserver for hosting an "on the fly" tool set'
 
 [[feature]]
+  id = "6"
   title = "chronicle init"
   status = "elicitated"
   author = ["elias@benefactory.se"]
@@ -54,42 +57,49 @@
     desc = "This test how well hello prints on a screen"
 
 [[feature]]
+  id = "7"
   title = "chronicle add"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = "req add main.req feature 'print hello world' --status elicitated"
 
 [[feature]]
+  id = "8"
   title = "chronicle test"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = 'req test "4EUh3oh" # Staged code ref to ->'
 
 [[feature]]
+  id = "9"
   title = "chronicle gui"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = "Open desktop chronicle in current folder"
 
 [[feature]]
+  id = "10"
   title = "chronicle server"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = 'req server --address 8080'
 
 [[feature]]
+  id = "11"
   title = "chronicle commit"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = "req add main.req feature 'print hello world' --status elicitated"
 
 [[function]]
+  id = "12"
   title = "Id to commonname generator"
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = 'Creates a title comment after a to in a relationship, eg. "to = F00002 # Common name" '
 
 [[format]]
+  id = "13"
   title = ".req structure"
   status = "elicitated"
   author = ["elias@benefactory.se"]
@@ -98,6 +108,7 @@
   file = ["./main.req", "./README.md"]
 
 [[format]]
+  id = "14"
   title = "Auto code detection"
   status = "elicitated"
   author = ["elias@benefactory.se"]
@@ -106,13 +117,13 @@
   file = ["./main.req", "./README.md"]
 
 [[component]]
+  id = "15"
   title = "Commandline parser"
   status = "elicitated"
   author = ["elias@benefactory.se"]
 
 [[stakeholder]]
+  id = "16"
   title = "Open source communities"
   status = "elicitated"
   author = ["elias@benefactory.se"]
-
-[[risk]]

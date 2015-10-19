@@ -9,7 +9,7 @@ import (
 
 // Database is a container struct holding a boltDB and gives access to some help function.
 type Database struct {
-	db *bolt.DB
+	DB *bolt.DB
 }
 
 //NewDatabase returns a database object with given configuration files
@@ -19,11 +19,11 @@ func NewDatabase(rootPath string) *Database {
 	if err != nil {
 		log.Fatal(err)
 	}
-	d.db = db
+	d.DB = db
 	return d
 }
 
 //Close calls the underlying Close()-method on the database object
 func (d *Database) Close() error {
-	return d.db.Close()
+	return d.DB.Close()
 }
