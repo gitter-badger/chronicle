@@ -30,6 +30,8 @@ func UpdateRepo(repoPath string) {
 	walker.reqMatcher, _ = regexp.Compile(".*\\.req")
 	diffOpt, _ := git.DefaultDiffOptions()
 	walker.diffOptions = &diffOpt
+	// Set resolution of diffs, 0 = file, 1 = Hunk, 2 = line by line
+	walker.diffDetail = git.DiffDetailLines
 
 	repo, err := git.OpenRepository(repoPath)
 	if err != nil {
@@ -119,11 +121,45 @@ func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEac
 }
 
 func updateReqFromEachHunk(diffHunk git.DiffHunk) (git.DiffForEachLineCallback, error) {
-	fmt.Println("EachHunk")
+	fmt.Println("EachHunk", diffHunk.Header)
+	fmt.Println("NewLines", diffHunk.NewLines)
+	fmt.Println("NewStart", diffHunk.NewStart)
+	fmt.Println("OldLines", diffHunk.OldLines)
+	fmt.Println("OldStart", diffHunk.OldStart)
 	return updateReqFromEachLine, nil
 }
 
 func updateReqFromEachLine(diffLine git.DiffLine) error {
-	fmt.Println(diffLine.Content)
+	fmt.Println("New line", diffLine.NewLineno)
+	fmt.Println("Old line", diffLine.OldLineno)
+	fmt.Println("Num lines", diffLine.NumLines)
+	fmt.Println("Origin", diffLineToString(diffLine.Origin))
+	fmt.Println("Origin", diffLine.Content)
+	fmt.Println("")
+
 	return nil
+}
+
+func diffLineToString(i git.DiffLineType) string {
+	switch i {
+	case git.DiffLineContext:
+		return "GIT_DIFF_LINE_CONTEXT"
+	case git.DiffLineAddition:
+		return "GIT_DIFF_LINE_ADDITION"
+	case git.DiffLineDeletion:
+		return "GIT_DIFF_LINE_DELETION"
+	case git.DiffLineContextEOFNL:
+		return "GIT_DIFF_LINE_CONTEXT_EOFNL"
+	case git.DiffLineAddEOFNL:
+		return "GIT_DIFF_LINE_ADD_EOFNL"
+	case git.DiffLineDelEOFNL:
+		return "GIT_DIFF_LINE_DEL_EOFNL"
+	case git.DiffLineFileHdr:
+		return "GIT_DIFF_LINE_FILE_HDR"
+	case git.DiffLineHunkHdr:
+		return "GIT_DIFF_LINE_HUNK_HDR"
+	case git.DiffLineBinary:
+		return "GIT_DIFF_LINE_BINARY"
+	}
+	return "Unknown"
 }
