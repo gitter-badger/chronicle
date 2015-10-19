@@ -3,8 +3,11 @@ package walker
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 	"regexp"
 
+	"github.com/Benefactory/chronicle/database"
+	"github.com/Benefactory/chronicle/requirments"
 	"github.com/libgit2/git2go"
 )
 
@@ -16,6 +19,7 @@ type Walker struct {
 	diffOptions   *git.DiffOptions
 	diffDetail    git.DiffDetail
 	currentCommit git.Commit
+	db            *database.Database
 }
 
 // Wraper for regex matcher for .req file
@@ -25,15 +29,16 @@ func (w *Walker) reqMatchString(s string) bool {
 
 // UpdateRepo updates the local requirment database by parsing the git-historyz
 // The string points to the location of the git database and where to create chronicle database.
-func UpdateRepo(repoPath string) {
+func UpdateRepo(rootPath string, db *database.Database) {
 	walker = Walker{}
 	walker.reqMatcher, _ = regexp.Compile(".*\\.req")
 	diffOpt, _ := git.DefaultDiffOptions()
 	walker.diffOptions = &diffOpt
 	// Set resolution of diffs, 0 = file, 1 = Hunk, 2 = line by line
 	walker.diffDetail = git.DiffDetailLines
+	walker.db = db
 
-	repo, err := git.OpenRepository(repoPath)
+	repo, err := git.OpenRepository("." + string(filepath.Separator) + rootPath)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -51,31 +56,24 @@ func UpdateRepo(repoPath string) {
 	}
 	fmt.Println("Head commit", headCommit.Id())
 
-	rootIds := crawlRepo(headCommit)
-	fmt.Println("All roots of git tree", rootIds)
-
-	// Update all line references for old req.
-	// *Diff, err = repo.DiffTreeToTree(oldTree, newTree, options)
+	crawlRepo(headCommit)
 
 	// Check if there is a commit req reference
 	// *Diff, err = repo.DiffIndexToWorkdir(null, options)
 	// Diff options https://libgit2.github.com/libgit2/#HEAD/type/git_diff_options
 	// Store lines of code -> Connect to specific req.
-
 }
 
-func crawlRepo(c *git.Commit) []*git.Oid {
+func crawlRepo(c *git.Commit) error {
 	walker.currentCommit = *c
-	var rootOid []*git.Oid
 	if c.ParentCount() == 0 {
 		// base case
 		fmt.Println("Root", c.Id())
-		rootOid = []*git.Oid{c.Id()}
-		return rootOid
+		return nil
 	}
 	for i := uint(0); i < c.ParentCount(); i++ {
 		fmt.Println("Not root", c.Id())
-		rootOid = append(rootOid, crawlRepo(c.Parent(i))...)
+		crawlRepo(c.Parent(i))
 	}
 	// Search for .req files
 	// -> Update database, new and removed req.
@@ -100,8 +98,7 @@ func crawlRepo(c *git.Commit) []*git.Oid {
 	}
 
 	// Check if there is a commit reference.
-
-	return rootOid
+	return nil
 }
 
 func indexReqFiles(s string, entry *git.TreeEntry) int {
@@ -112,6 +109,9 @@ func indexReqFiles(s string, entry *git.TreeEntry) int {
 	fmt.Println("Filemode", entry.Filemode)
 	fmt.Println("Type", entry.Type)
 	fmt.Println("")
+	if walker.reqMatchString(entry.Name) {
+		requirments.ParseReqFile("./"+s+entry.Name, walker.db)
+	}
 	return 0
 }
 
@@ -130,11 +130,32 @@ func updateReqFromEachHunk(diffHunk git.DiffHunk) (git.DiffForEachLineCallback, 
 }
 
 func updateReqFromEachLine(diffLine git.DiffLine) error {
+	switch diffLine.Origin {
+	case git.DiffLineContext:
+		// Line changed update old one.
+	case git.DiffLineAddition:
+		// If req. commit reference add to that new req.
+	case git.DiffLineDeletion:
+		// Decrese req. which have this line
+	case git.DiffLineContextEOFNL:
+		log.Fatal("GIT_DIFF_LINE_CONTEXT_EOFNL")
+	case git.DiffLineAddEOFNL:
+		log.Fatal("GIT_DIFF_LINE_ADD_EOFNL")
+	case git.DiffLineDelEOFNL:
+		log.Fatal("GIT_DIFF_LINE_DEL_EOFNL")
+	case git.DiffLineFileHdr:
+		log.Fatal("GIT_DIFF_LINE_FILE_HDR")
+	case git.DiffLineHunkHdr:
+		log.Fatal("GIT_DIFF_LINE_HUNK_HDR")
+	case git.DiffLineBinary:
+		log.Fatal("GIT_DIFF_LINE_BINARY")
+	}
+
 	fmt.Println("New line", diffLine.NewLineno)
 	fmt.Println("Old line", diffLine.OldLineno)
 	fmt.Println("Num lines", diffLine.NumLines)
 	fmt.Println("Origin", diffLineToString(diffLine.Origin))
-	fmt.Println("Origin", diffLine.Content)
+	fmt.Println("Content", diffLine.Content)
 	fmt.Println("")
 
 	return nil

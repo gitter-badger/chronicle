@@ -1,121 +1,118 @@
 [test]
   framework = "go"
 
-[goal]
-  [goal.F0000X]
-    title = "communication improvment"
+[[goal]]
+  title = "communication improvment"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "Improve communication between different stakeholder within software development projects"
+
+  [[goal.relationship]]
+    type = "dependency"
     status = "elicitated"
-    author = ["elias@benefactory.se"]
-    desc = "Improve communication between different stakeholder within software development projects"
+    to = "F00002" # Commandline parser
 
-  [goal.F0000X]
-    title = "Enforcing best practices"
+[[goal]]
+  title = "Enforcing best practices"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "Improve the requirement specification process by enforcing and assisting with the use of best practices."
+
+[[module]]
+  title = "Commandline tool"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "A tool used in the commandline target developers and tech oriented users."
+
+[[module]]
+  title = "Desktop tool"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "A desktop tool for the non-technical people"
+
+[[module]]
+  title = "Webserver"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = 'An webserver for hosting an "on the fly" tool set'
+
+[[feature]]
+  title = "chronicle init"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "Command-line command which create a local chronicle repo 'chronicle init'"
+
+  [[feature.relationship]]
+    # id = "634do37" Optional machine generated id
+    type = "dependency"
     status = "elicitated"
-    author = ["elias@benefactory.se"]
-    desc = "Improve the requirement specification process by enforcing and assisting with the use of best practices."
+    to = "F00002" # Commandline parser
 
-[module]
-  [module.F0000X]
-    title = "Commandline tool"
-    status = "elicitated"
-    author = ["elias@benefactory.se"]
-    desc = "A tool used in the commandline target developers and tech oriented users."
+  [[feature.test]]
+    reference = "main.PrinterTest"
+    framework = "go"
+    desc = "This test how well hello prints on a screen"
 
-  [module.F0000X]
-    title = "Desktop tool"
-    status = "elicitated"
-    author = ["elias@benefactory.se"]
-    desc = "A desktop tool for the non-technical people"
+[[feature]]
+  title = "chronicle add"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "req add main.req feature 'print hello world' --status elicitated"
 
-  [module.F0000X]
-    title = "Webserver"
-    status = "elicitated"
-    author = ["elias@benefactory.se"]
-    desc = 'An webserver for hosting an "on the fly" tool set'
+[[feature]]
+  title = "chronicle test"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = 'req test "4EUh3oh" # Staged code ref to ->'
 
-[feature]
-  [feature.F00001]
-    title = "chronicle init"
-    status = "elicitated"
-    author = ["elias@benefactory.se"]
-    desc = "Command-line command which create a local chronicle repo 'chronicle init'"
+[[feature]]
+  title = "chronicle gui"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "Open desktop chronicle in current folder"
 
-      [[relationship]]
-        # id = "634do37" Optional machine generated id
-        type = "dependency"
-        status = "elicitated"
-        to = "F00002" # Commandline parser
+[[feature]]
+  title = "chronicle server"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = 'req server --address 8080'
 
-      # [[test]]
-      #   name = "main.PrinterTest"
-      #   framework = "go"
-      #   desc = "This test how well hello prints on a screen"
+[[feature]]
+  title = "chronicle commit"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "req add main.req feature 'print hello world' --status elicitated"
 
-    [feature.F00007]
-      title = "chronicle add"
-      status = "elicitated"
-      author = ["elias@benefactory.se"]
-      desc = "req add main.req feature 'print hello world' --status elicitated"
+[[function]]
+  title = "Id to commonname generator"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = 'Creates a title comment after a to in a relationship, eg. "to = F00002 # Common name" '
 
-    [feature.F00007]
-      title = "chronicle test"
-      status = "elicitated"
-      author = ["elias@benefactory.se"]
-      desc = 'req test "4EUh3oh" # Staged code ref to ->'
+[[format]]
+  title = ".req structure"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = 'The .req file is the main format for this tool.'
+  spec = 'All attribute containing text uses markdown. Code attribute is a codeblock.'
+  file = ["./main.req", "./README.md"]
 
-    [feature.F00007]
-      title = "chronicle gui"
-      status = "elicitated"
-      author = ["elias@benefactory.se"]
-      desc = "Open desktop chronicle in current folder"
+[[format]]
+  title = "Auto code detection"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = 'The .req file is the main format for this tool.'
+  spec = 'All attribute containing text uses markdown. Code attribute is a codeblock.'
+  file = ["./main.req", "./README.md"]
 
-    [feature.F00007]
-      title = "chronicle server"
-      status = "elicitated"
-      author = ["elias@benefactory.se"]
-      desc = 'req server --address 8080'
+[[component]]
+  title = "Commandline parser"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
 
-    [feature.F00007]
-      title = "chronicle commit"
-      status = "elicitated"
-      author = ["elias@benefactory.se"]
-      desc = "req add main.req feature 'print hello world' --status elicitated"
+[[stakeholder]]
+  title = "Open source communities"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
 
-[function]
-  [function.F00003]
-    title = "Id to commonname generator"
-    status = "elicitated"
-    author = ["elias@benefactory.se"]
-    desc = 'Creates a title comment after a to in a relationship, eg. "to = F00002 # Common name" '
-
-[format]
-  [format.F00003]
-    title = ".req structure"
-    status = "elicitated"
-    author = ["elias@benefactory.se"]
-    desc = 'The .req file is the main format for this tool.'
-    spec = 'All attribute containing text uses markdown. Code attribute is a codeblock.'
-    file = ["./main.req", "./README.md"]
-
-  [format.F00003]
-    title = "Auto code detection"
-    status = "elicitated"
-    author = ["elias@benefactory.se"]
-    desc = 'The .req file is the main format for this tool.'
-    spec = 'All attribute containing text uses markdown. Code attribute is a codeblock.'
-    file = ["./main.req", "./README.md"]
-
-
-[component]
-  [component.F00002]
-    title = "Commandline parser"
-    status = "elicitated"
-    author = ["elias@benefactory.se"]
-
-[stakeholder]
-  [stakeholder.F91827]
-    title = "Open source communities"
-    status = "elicitated"
-    author = ["elias@benefactory.se"]
-
-[risk]
+[[risk]]
