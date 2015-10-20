@@ -17,11 +17,12 @@ var walker Walker
 
 // Walker is a container for storing results and holding working struct like regex matchers.
 type Walker struct {
-	reqMatcher    *regexp.Regexp
-	diffOptions   *git.DiffOptions
-	diffDetail    git.DiffDetail
-	currentCommit git.Commit
-	db            *database.Database
+	reqMatcher      *regexp.Regexp
+	diffOptions     *git.DiffOptions
+	diffDetail      git.DiffDetail
+	currentCommit   git.Commit
+	db              *database.Database
+	commitReference []string
 }
 
 // Wraper for regex matcher for .req file
@@ -65,7 +66,6 @@ func UpdateRepo(rootPath string, db *database.Database) {
 		panic(err)
 	}
 	fmt.Println("Head commit", headCommit.Id())
-
 	crawlRepo(headCommit)
 
 	// Check if there is a commit req reference
@@ -104,6 +104,8 @@ func crawlRepo(c *git.Commit) error {
 	}
 	currentTree.Walk(indexReqFiles)
 
+	// Check if there is a commit reference.
+
 	// Check if req->code have changed
 	// Check with parents commits tree, eg. c.Parent(i).Tree. <- OLD one c.Tree <- NEW one
 	for i := uint(0); i < c.ParentCount(); i++ {
@@ -117,7 +119,6 @@ func crawlRepo(c *git.Commit) error {
 		}
 		diff.ForEach(updateReqFromEachFile, walker.diffDetail)
 	}
-	// Check if there is a commit reference.
 	return nil
 }
 
@@ -180,6 +181,11 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 	fmt.Println("")
 
 	return nil
+}
+
+func commitReferences() {
+	msg := walker.currentCommit.Message()
+
 }
 
 func diffLineToString(i git.DiffLineType) string {
