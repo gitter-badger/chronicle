@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Benefactory/chronicle/database"
 	"github.com/Benefactory/chronicle/requirments"
@@ -100,6 +101,8 @@ func crawlRepo(c *git.Commit) error {
 		crawlRepo(c.Parent(i))
 		walker.currentCommit = *c
 	}
+
+	fmt.Println("====== CLIMBING UP THE TREE =======   ", walker.currentCommit.Id())
 	// Search for .req files
 	currentTree, err := c.Tree()
 	if err != nil {
@@ -128,12 +131,12 @@ func crawlRepo(c *git.Commit) error {
 
 func indexReqFiles(s string, entry *git.TreeEntry) int {
 
-	fmt.Println("Path to file:", s)
-	fmt.Println("Is .req file:", walker.reqMatchString(entry.Name))
-	fmt.Println("Name", entry.Name)
-	fmt.Println("Filemode", entry.Filemode)
-	fmt.Println("Type", entry.Type)
-	fmt.Println("")
+	// fmt.Println("Path to file:", s)
+	// fmt.Println("Is .req file:", walker.reqMatchString(entry.Name))
+	// fmt.Println("Name", entry.Name)
+	// fmt.Println("Filemode", entry.Filemode)
+	// fmt.Println("Type", entry.Type)
+	// fmt.Println("")
 	if walker.reqMatchString(entry.Name) {
 		fmt.Println("First", walker.currentCommit.Author().When.Format(time.RFC3339))
 		requirments.ParseReqFile("./"+s+entry.Name, walker.db, walker.currentCommit.Author().When)
@@ -147,15 +150,21 @@ func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEac
 }
 
 func updateReqFromEachHunk(diffHunk git.DiffHunk) (git.DiffForEachLineCallback, error) {
-	fmt.Println("EachHunk", diffHunk.Header)
-	fmt.Println("NewLines", diffHunk.NewLines)
-	fmt.Println("NewStart", diffHunk.NewStart)
-	fmt.Println("OldLines", diffHunk.OldLines)
-	fmt.Println("OldStart", diffHunk.OldStart)
+	// fmt.Println("EachHunk", diffHunk.Header)
+	// fmt.Println("NewLines", diffHunk.NewLines)
+	// fmt.Println("NewStart", diffHunk.NewStart)
+	// fmt.Println("OldLines", diffHunk.OldLines)
+	// fmt.Println("OldStart", diffHunk.OldStart)
 	return updateReqFromEachLine, nil
 }
 
 func updateReqFromEachLine(diffLine git.DiffLine) error {
+	// fmt.Println("New line", diffLine.NewLineno)
+	// fmt.Println("Old line", diffLine.OldLineno)
+	// fmt.Println("Num lines", diffLine.NumLines)
+	// fmt.Println("Origin", diffLineToString(diffLine.Origin))
+	// fmt.Println("Content", diffLine.Content)
+	// fmt.Println("")
 	switch diffLine.Origin {
 	case git.DiffLineContext:
 		// Line changed update old one.
@@ -168,7 +177,21 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 	case git.DiffLineAddEOFNL:
 		log.Fatal("GIT_DIFF_LINE_ADD_EOFNL")
 	case git.DiffLineDelEOFNL:
-		log.Fatal("GIT_DIFF_LINE_DEL_EOFNL")
+		// Line is deleted at the end of a file? Update req. by decresing the line count?
+		//
+		// OUTPUT FROM TO LAST LINES:
+		// New line 29
+		// Old line -1
+		// Num lines 0
+		// Origin GIT_DIFF_LINE_ADDITION
+		// Content .chronicle
+		//
+		// New line 29
+		// Old line -1
+		// Num lines 2
+		// Origin GIT_DIFF_LINE_DEL_EOFNL
+		// Content
+		// \ No newline at end of file
 	case git.DiffLineFileHdr:
 		log.Fatal("GIT_DIFF_LINE_FILE_HDR")
 	case git.DiffLineHunkHdr:
@@ -177,21 +200,21 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 		log.Fatal("GIT_DIFF_LINE_BINARY")
 	}
 
-	fmt.Println("New line", diffLine.NewLineno)
-	fmt.Println("Old line", diffLine.OldLineno)
-	fmt.Println("Num lines", diffLine.NumLines)
-	fmt.Println("Origin", diffLineToString(diffLine.Origin))
-	fmt.Println("Content", diffLine.Content)
-	fmt.Println("")
-
 	return nil
 }
 
 func commitReferences() {
 	msg := walker.currentCommit.Message()
 	reqs := walker.commitMatcher.FindStringSubmatch(msg)
-	fmt.Println("Printing commit msg", msg)
-	fmt.Println(reqs)
+
+	fmt.Println("Printing commit msg:", msg)
+	for _, ref := range reqs {
+		if utf8.RuneCountInString(ref) == 9 {
+			fmt.Println("All code references to commit", ref)
+		} else {
+			fmt.Println("Store specific commit. TODO", ref)
+		}
+	}
 }
 
 func randString(n int) string {

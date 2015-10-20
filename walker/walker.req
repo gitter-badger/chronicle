@@ -1,5 +1,5 @@
 [[function]]
-  id = "13"
+  id = "ifj7162A"
   title = "Code reference through commit"
   status = "elicitated"
   author = ["elias@benefactory.se"]
@@ -11,7 +11,7 @@
   status = "elicitated"
   author = ["elias@benefactory.se"]
   desc = "This is example how a commit ref shall be formated"
-  spec = "
+  spec = """
   Spec:
     #[alphanum,8char] ([filename],[lineNbr]-[lineNbr], ...) (...)
 
@@ -28,4 +28,4 @@
     #hsH21hd1 (walker.go, 20-25) #sSd33j12
 
   * Filepath can be omited as long filename is unique. Conflicts will just be discarded.
-  * Several line block can declared as long they are inside parentheses"
+  * Several line block can declared as long they are inside parentheses"""
