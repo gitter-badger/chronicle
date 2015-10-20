@@ -21,10 +21,14 @@ var walker Walker
 type Walker struct {
 	reqMatcher      *regexp.Regexp
 	commitMatcher   *regexp.Regexp
-	diffOptions     *git.DiffOptions
-	diffDetail      git.DiffDetail
-	currentCommit   git.Commit
 	db              *database.Database
+	diffOptions     *git.DiffOptions
+	checkoutOptions *git.CheckoutOpts
+	diffDetail      git.DiffDetail
+
+	// Temporary variable used by the recursive functions
+	currentCommit   git.Commit
+	currentIsReq    bool
 	commitReference []string
 }
 
@@ -42,6 +46,9 @@ func UpdateRepo(rootPath string, db *database.Database) {
 	// Diff options https://libgit2.github.com/libgit2/#HEAD/type/git_diff_options
 	diffOpt, _ := git.DefaultDiffOptions()
 	walker.diffOptions = &diffOpt
+	// TODO: This needs ref like above.
+	checkoutOpts := git.CheckoutOpts{}
+	walker.checkoutOptions = &checkoutOpts
 	// Set resolution of diffs, 0 = file, 1 = Hunk, 2 = line by line
 	walker.diffDetail = git.DiffDetailLines
 	walker.db = db
@@ -108,6 +115,10 @@ func crawlRepo(c *git.Commit) error {
 	if err != nil {
 		log.Fatal(err)
 	}
+	err = c.Owner().CheckoutTree(currentTree, walker.checkoutOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
 	currentTree.Walk(indexReqFiles)
 	// Check if there is a commit reference.
 	commitReferences()
@@ -134,6 +145,7 @@ func indexReqFiles(s string, entry *git.TreeEntry) int {
 }
 
 func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEachHunkCallback, error) {
+	walker.currentIsReq = walker.reqMatchString(diffDelta.NewFile.Path)
 	fmt.Println("Old file", diffDelta.OldFile)
 	fmt.Println("New file", diffDelta.NewFile)
 	return updateReqFromEachHunk, nil
