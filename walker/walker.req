@@ -1,0 +1,31 @@
+[[function]]
+  id = "13"
+  title = "Code reference through commit"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "It shall be possible to link commited code to a code block through a commit msg."
+
+[[format]]
+  id = "14"
+  title = ".req commit structure"
+  status = "elicitated"
+  author = ["elias@benefactory.se"]
+  desc = "This is example how a commit ref shall be formated"
+  spec = "
+  Spec:
+    #[alphanum,8char] ([filename],[lineNbr]-[lineNbr], ...) (...)
+
+  Reference all staged code:
+    #hsH21hd1
+
+  Reference code to several requirments:
+    #hsH21hd1 #Foj27hs1
+
+  Specific reference example:
+    #hsH21hd1 (walker.go, 20-25, 30-32) (./database/database.go, 10-15)
+
+  Reference all and specific code combined example:
+    #hsH21hd1 (walker.go, 20-25) #sSd33j12
+
+  * Filepath can be omited as long filename is unique. Conflicts will just be discarded.
+  * Several line block can declared as long they are inside parentheses"

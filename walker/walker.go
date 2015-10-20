@@ -1,6 +1,7 @@
 package walker
 
 import (
+	"crypto/rand"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -18,6 +19,7 @@ var walker Walker
 // Walker is a container for storing results and holding working struct like regex matchers.
 type Walker struct {
 	reqMatcher      *regexp.Regexp
+	commitMatcher   *regexp.Regexp
 	diffOptions     *git.DiffOptions
 	diffDetail      git.DiffDetail
 	currentCommit   git.Commit
@@ -35,6 +37,7 @@ func (w *Walker) reqMatchString(s string) bool {
 func UpdateRepo(rootPath string, db *database.Database) {
 	walker = Walker{}
 	walker.reqMatcher, _ = regexp.Compile(".*\\.req")
+	walker.commitMatcher, _ = regexp.Compile("#[a-zA-Z0-9]{8}(:?( \\([0-9a-zA-Z_, \\-.]*\\))*)")
 	diffOpt, _ := git.DefaultDiffOptions()
 	walker.diffOptions = &diffOpt
 	// Set resolution of diffs, 0 = file, 1 = Hunk, 2 = line by line
@@ -105,6 +108,7 @@ func crawlRepo(c *git.Commit) error {
 	currentTree.Walk(indexReqFiles)
 
 	// Check if there is a commit reference.
+	commitReferences()
 
 	// Check if req->code have changed
 	// Check with parents commits tree, eg. c.Parent(i).Tree. <- OLD one c.Tree <- NEW one
@@ -185,7 +189,19 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 
 func commitReferences() {
 	msg := walker.currentCommit.Message()
+	reqs := walker.commitMatcher.FindStringSubmatch(msg)
+	fmt.Println("Printing commit msg", msg)
+	fmt.Println(reqs)
+}
 
+func randString(n int) string {
+	const alphanum = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+	var bytes = make([]byte, n)
+	rand.Read(bytes)
+	for i, b := range bytes {
+		bytes[i] = alphanum[b%byte(len(alphanum))]
+	}
+	return string(bytes)
 }
 
 func diffLineToString(i git.DiffLineType) string {
