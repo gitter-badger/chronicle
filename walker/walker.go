@@ -150,7 +150,11 @@ func crawlRepo(c *git.Commit) error {
 
 func indexReqFiles(s string, entry *git.TreeEntry) int {
 	if walker.reqMatchString(entry.Name) {
-		requirments.ParseReqFile("./"+s+entry.Name, walker.db, walker.currentCommit.Author().When)
+		err := requirments.ParseReqFile("./"+s+entry.Name, walker.db, walker.currentCommit.Author().When)
+		if err != nil {
+			fmt.Println("File:\"", s, "\" ignored")
+			fmt.Println(err)
+		}
 	}
 	return 0
 }

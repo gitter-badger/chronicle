@@ -23,7 +23,7 @@ func ParseReqFile(path string, db *database.Database, date time.Time) error {
 	}
 	var requirments tomlReq
 	if err := toml.Unmarshal(buf, &requirments); err != nil {
-		panic(err)
+		return err
 	}
 
 	for _, value := range requirments.Component {
