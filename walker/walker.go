@@ -126,6 +126,8 @@ func crawlRepo(c *git.Commit) error {
 	if err != nil {
 		log.Fatal(err)
 	}
+	// Unlike git checkout, it does not move the HEAD commit for you.
+	// https://libgit2.github.com/libgit2/#HEAD/type/git_checkout_strategy_t
 	err = c.Owner().CheckoutTree(currentTree, walker.checkoutOptions)
 	if err != nil {
 		log.Fatal(err)
@@ -152,8 +154,11 @@ func indexReqFiles(s string, entry *git.TreeEntry) int {
 	if walker.reqMatchString(entry.Name) {
 		err := requirments.ParseReqFile("./"+s+entry.Name, walker.db, walker.currentCommit.Author().When)
 		if err != nil {
-			fmt.Println("File:\"", s, "\" ignored")
+			fmt.Println("")
+			fmt.Println("TOML FORMAT ERROR")
+			fmt.Println("File:\"", s+entry.Name, "\" ignored")
 			fmt.Println(err)
+			fmt.Println("")
 		}
 	}
 	return 0
@@ -307,6 +312,27 @@ func Stash(branchName string, repo *git.Repository) error {
 	// # ... continue hacking ...
 }
 
-func unStash(branchName string, r *git.Repository) error {
+// UnStash moves content of a branch back to index, staging area.
+// Existing branches will be overwritten
+func UnStash(branchName string, repo *git.Repository) error {
+	branch, err := repo.LookupBranch(branchName, git.BranchLocal)
+	if err != nil {
+		panic(err)
+	}
+	// Get reference of branch
+	reference, err := branch.Upstream()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(reference)
+	// Get target (oid) of reference
+	oid := reference.Target()
+	fmt.Println(oid)
+	// Get Tree from (oid)
+
+	// Checkout oid
+
+	// reset -soft
+
 	return nil
 }
