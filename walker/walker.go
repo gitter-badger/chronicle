@@ -25,6 +25,7 @@ type Walker struct {
 	diffOptions     *git.DiffOptions
 	checkoutOptions *git.CheckoutOpts
 	diffDetail      git.DiffDetail
+	commitSignature *git.Signature
 
 	// Temporary variable used by the recursive functions
 	currentCommit   git.Commit
@@ -48,9 +49,16 @@ func UpdateRepo(rootPath string, db *database.Database) {
 	walker.diffOptions = &diffOpt
 	// TODO: This needs ref like above.
 	checkoutOpts := git.CheckoutOpts{}
+	checkoutOpts.Strategy = git.CheckoutForce
 	walker.checkoutOptions = &checkoutOpts
 	// Set resolution of diffs, 0 = file, 1 = Hunk, 2 = line by line
 	walker.diffDetail = git.DiffDetailLines
+	// Create signature for the walker.
+	walker.commitSignature = &git.Signature{
+		Name:  "Chronicle tool",
+		Email: "chronicle@benefactory.se",
+		When:  time.Now(),
+	}
 	walker.db = db
 
 	db.DB.Update(func(tx *bolt.Tx) error {
@@ -115,7 +123,11 @@ func crawlRepo(c *git.Commit) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = c.Owner().CheckoutTree(currentTree, walker.checkoutOptions)
+	err = Stash("ChronicleStash", c.Owner())
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = c.Owner().CheckoutTree(currentTree, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -232,4 +244,66 @@ func randString(n int) string {
 		bytes[i] = alphanum[b%byte(len(alphanum))]
 	}
 	return string(bytes)
+}
+
+// Stash is a replication of the stash feature in git but do create real branches.
+// Existing branches will be overwritten
+func Stash(branchName string, repo *git.Repository) error {
+	head, err := repo.Head()
+	if err != nil {
+		log.Fatal(err)
+	}
+	headCommit, err := repo.LookupCommit(head.Target())
+	if err != nil {
+		log.Fatal(err)
+	}
+	// True means that existing branch will be overwritten. Use with care.
+	branch, err := repo.CreateBranch(branchName, headCommit, true)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Get the index also called the staging area.
+	idx, err := repo.Index()
+	if err != nil {
+		panic(err)
+	}
+	// Writes the current states of all files to the index (staging).
+	// This created index can later be commited.
+	// https://libgit2.github.com/libgit2/#HEAD/group/index/git_index_write_tree
+	treeID, err := idx.WriteTree()
+	if err != nil {
+		panic(err)
+	}
+	// Get tree represantation of the above id
+	tree, err := repo.LookupTree(treeID)
+	if err != nil {
+		panic(err)
+	}
+	// Get the parent commit in this case the branch
+	commitTarget, err := repo.LookupCommit(branch.Target())
+	if err != nil {
+		panic(err)
+	}
+	// Commit the tree as child to branch commit (commitTarget).
+	// Update the /refs/heads so we can find back to this commit by only knowing repo name.
+	message := "Stashing commit by chronicle"
+	_, err = repo.CreateCommit("refs/heads/"+branchName, walker.commitSignature, walker.commitSignature, message, tree, commitTarget)
+	if err != nil {
+		panic(err)
+	}
+	return err
+
+	// 	# ... hack hack hack ...
+	// $ git checkout -b my_wip
+	// $ git commit -a -m "WIP"
+	// $ git checkout master
+	// $ edit emergency fix
+	// $ git commit -a -m "Fix in a hurry"
+	// $ git checkout my_wip
+	// $ git reset --soft HEAD^
+	// # ... continue hacking ...
+}
+
+func unStash(branchName string, r *git.Repository) error {
+	return nil
 }
