@@ -337,8 +337,8 @@ func UnStash(branchName string, repo *git.Repository) error {
 		fmt.Println("Reference string:", referenceString)
 		fmt.Println("Reference:", reference)
 
-		referenceNameIterator.Next()
-		referenceNameIterator.ReferenceIterator.Next()
+		referenceString, err := referenceNameIterator.Next()
+		reference, err = referenceNameIterator.ReferenceIterator.Next()
 	}
 
 	return nil
