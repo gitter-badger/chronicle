@@ -335,5 +335,5 @@ func UnStash(branchName string, repo *git.Repository) error {
 		reference, err = referenceNameIterator.ReferenceIterator.Next()
 	}
 
-	return err
+	return nil
 }
