@@ -278,31 +278,31 @@ func Stash(branchName string, repo *git.Repository) error {
 	// Get the index also called the staging area.
 	idx, err := repo.Index()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	// Writes the current states of all files to the index (staging).
 	// This created index can later be commited.
 	// https://libgit2.github.com/libgit2/#HEAD/group/index/git_index_write_tree
 	treeID, err := idx.WriteTree()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	// Get tree represantation of the above id
 	tree, err := repo.LookupTree(treeID)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	// Get the parent commit in this case the branch
 	commitTarget, err := repo.LookupCommit(branch.Target())
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	// Commit the tree as child to branch commit (commitTarget).
 	// Update the /refs/heads so we can find back to this commit by only knowing repo name.
 	message := "Stashing commit by chronicle"
 	_, err = repo.CreateCommit("refs/heads/"+branchName, walker.commitSignature, walker.commitSignature, message, tree, commitTarget)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	return err
 
@@ -322,11 +322,17 @@ func Stash(branchName string, repo *git.Repository) error {
 func UnStash(branchName string, repo *git.Repository) error {
 	referenceNameIterator, err := repo.NewReferenceNameIterator()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	referenceString, err := referenceNameIterator.Next()
+	if err != nil {
+		log.Fatal(err)
+	}
 	reference, err := referenceNameIterator.ReferenceIterator.Next()
+	if err != nil {
+		log.Fatal(err)
+	}
 	for err != nil {
 		fmt.Println("Reference string:", referenceString)
 		fmt.Println("Reference:", reference)
