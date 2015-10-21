@@ -320,24 +320,20 @@ func Stash(branchName string, repo *git.Repository) error {
 // UnStash moves content of a branch back to index, staging area.
 // Existing branches will be overwritten
 func UnStash(branchName string, repo *git.Repository) error {
-	branch, err := repo.LookupBranch(branchName, git.BranchLocal)
+	referenceNameIterator, err := repo.NewReferenceNameIterator()
 	if err != nil {
 		panic(err)
 	}
-	// Get reference of branch
-	reference, err := branch.Upstream()
-	if err != nil {
-		log.Fatal(err)
+
+	referenceString, err := referenceNameIterator.Next()
+	reference, err := referenceNameIterator.ReferenceIterator.Next()
+	for err != nil {
+		fmt.Println("Reference string:", referenceString)
+		fmt.Println("Reference:", reference)
+
+		referenceNameIterator.Next()
+		referenceNameIterator.ReferenceIterator.Next()
 	}
-	fmt.Println(reference)
-	// Get target (oid) of reference
-	oid := reference.Target()
-	fmt.Println(oid)
-	// Get Tree from (oid)
-
-	// Checkout oid
-
-	// reset -soft
 
 	return nil
 }
