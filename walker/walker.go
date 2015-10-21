@@ -47,10 +47,9 @@ func UpdateRepo(rootPath string, db *database.Database) {
 	// Diff options https://libgit2.github.com/libgit2/#HEAD/type/git_diff_options
 	diffOpt, _ := git.DefaultDiffOptions()
 	walker.diffOptions = &diffOpt
-	// TODO: This needs ref like above.
-	checkoutOpts := git.CheckoutOpts{}
-	checkoutOpts.Strategy = git.CheckoutForce
-	walker.checkoutOptions = &checkoutOpts
+	walker.checkoutOptions = &git.CheckoutOpts{
+		Strategy: git.CheckoutForce,
+	}
 	// Set resolution of diffs, 0 = file, 1 = Hunk, 2 = line by line
 	walker.diffDetail = git.DiffDetailLines
 	// Create signature for the walker.
@@ -127,7 +126,7 @@ func crawlRepo(c *git.Commit) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = c.Owner().CheckoutTree(currentTree, nil)
+	err = c.Owner().CheckoutTree(currentTree, walker.checkoutOptions)
 	if err != nil {
 		log.Fatal(err)
 	}
