@@ -133,6 +133,11 @@ func crawlRepo(c *git.Commit) error {
 		log.Fatal(err)
 	}
 	currentTree.Walk(indexReqFiles)
+
+	err = UnStash("ChronicleStash", c.Owner())
+	if err != nil {
+		log.Fatal(err)
+	}
 	// Check if there is a commit reference.
 	commitReferences()
 	// Create a diff between current and parent tree
