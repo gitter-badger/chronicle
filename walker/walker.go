@@ -2,10 +2,12 @@ package walker
 
 import (
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -134,10 +136,8 @@ func crawlRepo(c *git.Commit) error {
 	}
 	currentTree.Walk(indexReqFiles)
 
-	err = UnStash("ChronicleStash", c.Owner())
-	if err != nil {
-		log.Fatal(err)
-	}
+	UnStash("ChronicleStash", c.Owner())
+
 	// Check if there is a commit reference.
 	commitReferences()
 	// Create a diff between current and parent tree
@@ -281,13 +281,14 @@ func Stash(branchName string, repo *git.Repository) error {
 		log.Fatal(err)
 	}
 	// Writes the current states of all files to the index (staging).
-	// This created index can later be commited.
+
+	// This generate a tree from current index.
 	// https://libgit2.github.com/libgit2/#HEAD/group/index/git_index_write_tree
 	treeID, err := idx.WriteTree()
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Get tree represantation of the above id
+	// Get the generated tree represantation of the above id
 	tree, err := repo.LookupTree(treeID)
 	if err != nil {
 		log.Fatal(err)
@@ -319,7 +320,7 @@ func Stash(branchName string, repo *git.Repository) error {
 
 // UnStash moves content of a branch back to index, staging area.
 // Existing branches will be overwritten
-func UnStash(branchName string, repo *git.Repository) error {
+func UnStash(branchName string, repo *git.Repository) {
 	referenceNameIterator, err := repo.NewReferenceNameIterator()
 	if err != nil {
 		log.Fatal(err)
@@ -329,11 +330,22 @@ func UnStash(branchName string, repo *git.Repository) error {
 	referenceString, err = referenceNameIterator.Next()
 	reference, err = referenceNameIterator.ReferenceIterator.Next()
 	for err == nil {
-		fmt.Println("Reference string:", referenceString)
-		fmt.Println("Reference:", reference)
-		referenceString, err = referenceNameIterator.Next()
-		reference, err = referenceNameIterator.ReferenceIterator.Next()
+		if strings.EqualFold(branchName, referenceString) {
+			oid := reference.Target()
+			// tree, err := repo.LookupTree(oid)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// repo.CheckoutTree(tree, walker.checkoutOptions)
+			commit, err := repo.LookupCommit(oid)
+			if err != nil {
+				log.Fatal(err)
+			}
+			repo.ResetToCommit(commit, git.ResetHard, walker.checkoutOptions)
+			err = errors.New("Found branch")
+		} else {
+			referenceString, err = referenceNameIterator.Next()
+			reference, err = referenceNameIterator.ReferenceIterator.Next()
+		}
 	}
-
-	return nil
 }
