@@ -361,3 +361,10 @@ func UnStash(branchName string, repo *git.Repository) {
 		}
 	}
 }
+
+// DebugUpdateCallback shall be removed if possible
+func DebugUpdateCallback(path string, pathspec string) int {
+	fmt.Println("Path: ", path)
+	fmt.Println("Matched pathspec: ", pathspec)
+	return 0
+}
