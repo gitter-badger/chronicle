@@ -340,12 +340,10 @@ func UnStash(branchName string, repo *git.Repository) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	var referenceString string
-	var reference *git.Reference
-	referenceString, err = referenceNameIterator.Next()
-	reference, err = referenceNameIterator.ReferenceIterator.Next()
-	for err == nil {
-		if strings.EqualFold(branchName, referenceString) {
+	referenceString, loopErr := referenceNameIterator.Next()
+	reference, loopErr := referenceNameIterator.ReferenceIterator.Next()
+	for loopErr == nil {
+		if strings.EqualFold("refs/heads"+branchName, referenceString) {
 			fmt.Println("Unstashing files from branch:", branchName)
 			oid := reference.Target()
 			// tree, err := repo.LookupTree(oid)
@@ -358,10 +356,10 @@ func UnStash(branchName string, repo *git.Repository) {
 				log.Fatal(err)
 			}
 			repo.ResetToCommit(commit, git.ResetHard, walker.checkoutOptions)
-			err = errors.New("Found branch")
+			loopErr = errors.New("Found branch")
 		} else {
-			referenceString, err = referenceNameIterator.Next()
-			reference, err = referenceNameIterator.ReferenceIterator.Next()
+			referenceString, loopErr = referenceNameIterator.Next()
+			reference, loopErr = referenceNameIterator.ReferenceIterator.Next()
 		}
 	}
 }
