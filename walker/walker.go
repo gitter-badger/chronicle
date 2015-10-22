@@ -86,7 +86,13 @@ func UpdateRepo(rootPath string, db *database.Database) {
 	}
 	fmt.Println("Head commit", headCommit.Id())
 	fmt.Println("")
+
+	err = Stash("ChronicleStash", repo)
+	if err != nil {
+		log.Fatal(err)
+	}
 	crawlRepo(headCommit)
+	UnStash("ChronicleStash", repo)
 }
 
 func crawlRepo(c *git.Commit) error {
@@ -124,10 +130,7 @@ func crawlRepo(c *git.Commit) error {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = Stash("ChronicleStash", c.Owner())
-	if err != nil {
-		log.Fatal(err)
-	}
+
 	// Unlike git checkout, it does not move the HEAD commit for you.
 	// https://libgit2.github.com/libgit2/#HEAD/type/git_checkout_strategy_t
 	err = c.Owner().CheckoutTree(currentTree, walker.checkoutOptions)
@@ -135,8 +138,6 @@ func crawlRepo(c *git.Commit) error {
 		log.Fatal(err)
 	}
 	currentTree.Walk(indexReqFiles)
-
-	UnStash("ChronicleStash", c.Owner())
 
 	// Check if there is a commit reference.
 	commitReferences()
@@ -281,7 +282,7 @@ func Stash(branchName string, repo *git.Repository) error {
 		log.Fatal(err)
 	}
 	// Writes the current states of all files to the index (staging).
-	root := []string{"."}
+	root := []string{"*"}
 	err = idx.UpdateAll(root, nil)
 	if err != nil {
 		log.Fatal(err)
