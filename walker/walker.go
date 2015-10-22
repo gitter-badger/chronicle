@@ -281,7 +281,7 @@ func Stash(branchName string, repo *git.Repository) error {
 		log.Fatal(err)
 	}
 	// Writes the current states of all files to the index (staging).
-	root := []string{"."}
+	root := []string{"." + string(filepath.Separator) + "*"}
 	err = idx.UpdateAll(root, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -297,7 +297,7 @@ func Stash(branchName string, repo *git.Repository) error {
 	// This will write the new modified index to the git database
 	err = idx.Write()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	// Get the generated tree represantation of the above id
