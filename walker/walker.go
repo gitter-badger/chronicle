@@ -263,6 +263,7 @@ func randString(n int) string {
 // Stash is a replication of the stash feature in git but do create real branches.
 // Existing branches will be overwritten
 func Stash(branchName string, repo *git.Repository) error {
+	fmt.Println("Stashing files to branch:", branchName)
 	head, err := repo.Head()
 	if err != nil {
 		log.Fatal(err)
@@ -282,8 +283,9 @@ func Stash(branchName string, repo *git.Repository) error {
 		log.Fatal(err)
 	}
 	// Writes the current states of all files to the index (staging).
+	// TODO: Check if this needs to be written as "./*"
 	root := []string{"*"}
-	err = idx.UpdateAll(root, nil)
+	err = idx.UpdateAll(root, UpdateIndexStashCallback)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -344,6 +346,7 @@ func UnStash(branchName string, repo *git.Repository) {
 	reference, err = referenceNameIterator.ReferenceIterator.Next()
 	for err == nil {
 		if strings.EqualFold(branchName, referenceString) {
+			fmt.Println("Unstashing files from branch:", branchName)
 			oid := reference.Target()
 			// tree, err := repo.LookupTree(oid)
 			// if err != nil {
@@ -363,9 +366,7 @@ func UnStash(branchName string, repo *git.Repository) {
 	}
 }
 
-// DebugUpdateCallback shall be removed if possible
-func DebugUpdateCallback(path string, pathspec string) int {
-	fmt.Println("Path: ", path)
-	fmt.Println("Matched pathspec: ", pathspec)
+// UpdateIndexStashCallback always return 0 -> updates all files
+func UpdateIndexStashCallback(path string, pathspec string) int {
 	return 0
 }
