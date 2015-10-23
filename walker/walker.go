@@ -82,7 +82,7 @@ func UpdateRepo(rootPath string, db *database.Database) {
 
 	headCommit, err := repo.LookupCommit(head.Target())
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	fmt.Println("Head commit", headCommit.Id())
 	fmt.Println("")
@@ -341,31 +341,21 @@ func UnStash(branchName string, repo *git.Repository) {
 		log.Fatal(err)
 	}
 	referenceString, loopErr := referenceNameIterator.Next()
-	reference, loopErr := referenceNameIterator.ReferenceIterator.Next()
 	for loopErr == nil {
-		if strings.EqualFold("refs/heads/"+branchName, referenceString) {
+		if strings.EqualFold("refs/heads"+branchName, referenceString) {
 			fmt.Println("Unstashing files from branch:", branchName)
-
-			repo.SetHead("refs/heads/" + branchName)
-			head, err := repo.Head()
+			oldReference, err := repo.Head()
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Println("Current branch:", head.Name())
-
-			headCommit, err := repo.LookupCommit(head.Target())
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Println("Stash commit", headCommit.Id())
-			fmt.Println("")
-
-			fmt.Println(reference.Name())
+			repo.SetHead(referenceString)
+			repo.CheckoutHead(walker.checkoutOptions)
+			fmt.Println("Reset Head:", oldReference.Name())
+			repo.SetHead(oldReference.Name())
 
 			loopErr = errors.New("Found branch")
 		} else {
 			referenceString, loopErr = referenceNameIterator.Next()
-			reference, loopErr = referenceNameIterator.ReferenceIterator.Next()
 		}
 	}
 }
