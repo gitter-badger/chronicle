@@ -2,12 +2,10 @@ package walker
 
 import (
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
 	"regexp"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -336,27 +334,35 @@ func Stash(branchName string, repo *git.Repository) error {
 // UnStash moves content of a branch back to index, staging area.
 // Existing branches will be overwritten
 func UnStash(branchName string, repo *git.Repository) {
-	referenceNameIterator, err := repo.NewReferenceNameIterator()
+	// See if branch exist
+	branch, err := repo.LookupBranch(branchName, git.BranchLocal)
 	if err != nil {
 		log.Fatal(err)
 	}
-	referenceString, loopErr := referenceNameIterator.Next()
-	for loopErr == nil {
-		if strings.EqualFold("refs/heads"+branchName, referenceString) {
-			fmt.Println("Unstashing files from branch:", branchName)
-			oldReference, err := repo.Head()
-			if err != nil {
-				log.Fatal(err)
-			}
-			repo.SetHead(referenceString)
-			repo.CheckoutHead(walker.checkoutOptions)
-			fmt.Println("Reset Head:", oldReference.Name())
-			repo.SetHead(oldReference.Name())
-
-			loopErr = errors.New("Found branch")
-		} else {
-			referenceString, loopErr = referenceNameIterator.Next()
-		}
+	// Temporary save the current head
+	currentReference, err := repo.Head()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Set the stashed branch as head
+	repo.SetHead("refs/heads/" + branchName)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Check out and write over the staging area.
+	err = repo.CheckoutHead(walker.checkoutOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Reset the head to one before
+	repo.SetHead(currentReference.Name())
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Delete the old Stash-branch
+	err = branch.Delete()
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
