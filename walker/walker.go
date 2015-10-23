@@ -82,7 +82,7 @@ func UpdateRepo(rootPath string, db *database.Database) {
 
 	headCommit, err := repo.LookupCommit(head.Target())
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	fmt.Println("Head commit", headCommit.Id())
 	fmt.Println("")
@@ -343,19 +343,25 @@ func UnStash(branchName string, repo *git.Repository) {
 	referenceString, loopErr := referenceNameIterator.Next()
 	reference, loopErr := referenceNameIterator.ReferenceIterator.Next()
 	for loopErr == nil {
-		if strings.EqualFold("refs/heads"+branchName, referenceString) {
+		if strings.EqualFold("refs/heads/"+branchName, referenceString) {
 			fmt.Println("Unstashing files from branch:", branchName)
-			oid := reference.Target()
-			// tree, err := repo.LookupTree(oid)
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			// repo.CheckoutTree(tree, walker.checkoutOptions)
-			commit, err := repo.LookupCommit(oid)
+
+			repo.SetHead("refs/heads/" + branchName)
+			head, err := repo.Head()
 			if err != nil {
 				log.Fatal(err)
 			}
-			repo.ResetToCommit(commit, git.ResetHard, walker.checkoutOptions)
+			fmt.Println("Current branch:", head.Name())
+
+			headCommit, err := repo.LookupCommit(head.Target())
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println("Stash commit", headCommit.Id())
+			fmt.Println("")
+
+			fmt.Println(reference.Name())
+
 			loopErr = errors.New("Found branch")
 		} else {
 			referenceString, loopErr = referenceNameIterator.Next()
