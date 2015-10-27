@@ -1,7 +1,6 @@
 package walker
 
 import (
-	"crypto/rand"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -28,9 +27,11 @@ type Walker struct {
 	commitSignature *git.Signature
 
 	// Temporary variable used by the recursive functions
-	currentCommit   git.Commit
-	currentIsReq    bool
-	commitReference []string
+	currentCommit     git.Commit
+	currentFileIsReq  bool
+	currentFileBucket *bolt.Bucket
+	commitReference   []string // Reference from commit msg to requirments
+	isStartReqSet     bool
 }
 
 // Wraper for regex matcher for .req file
@@ -169,64 +170,110 @@ func indexReqFiles(s string, entry *git.TreeEntry) int {
 }
 
 func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEachHunkCallback, error) {
-	walker.currentIsReq = walker.reqMatchString(diffDelta.NewFile.Path)
+	walker.currentFileIsReq = walker.reqMatchString(diffDelta.NewFile.Path)
+	if !walker.currentFileIsReq {
+		// Create new filebucket
+		// Root-bucket -> Commit-bucket (date) -> File-bucket -> (Key:Line, Value: [req]
+		err := walker.db.DB.Update(func(tx *bolt.Tx) error {
+			var err error
+			bRoot := tx.Bucket([]byte("RootBucket"))
+			bucketID := walker.currentCommit.Author().When.Format(time.RFC3339)
+			bCurrent := bRoot.Bucket([]byte(bucketID))
+			walker.currentFileBucket, err = bCurrent.CreateBucket([]byte(diffDelta.NewFile.Path))
+			if err != nil {
+				log.Fatal(err)
+			}
+			return err
+		})
+		if err != nil {
+			panic(err)
+		}
+	}
 	fmt.Println("Old file", diffDelta.OldFile)
 	fmt.Println("New file", diffDelta.NewFile)
 	return updateReqFromEachHunk, nil
 }
 
 func updateReqFromEachHunk(diffHunk git.DiffHunk) (git.DiffForEachLineCallback, error) {
+	// TODO: Ta bort, hjälp för alex.
+	fmt.Println("Hunk Header", diffHunk.Header)
+	fmt.Println("new lines", diffHunk.NewLines)
+	fmt.Println("old lines", diffHunk.OldLines)
+	fmt.Println("New start", diffHunk.NewStart)
+	fmt.Println("Old start", diffHunk.OldStart)
+	fmt.Println("")
+
 	return updateReqFromEachLine, nil
 }
 
 func updateReqFromEachLine(diffLine git.DiffLine) error {
 
-	switch diffLine.Origin {
-	case git.DiffLineContext:
-		// Line changed update old one.
-	case git.DiffLineAddition:
-		// If req. commit reference add to that new req.
-	case git.DiffLineDeletion:
-		// Decrese req. which have this line
-	case git.DiffLineContextEOFNL:
-		log.Fatal("GIT_DIFF_LINE_CONTEXT_EOFNL")
-	case git.DiffLineAddEOFNL:
+	if !walker.currentFileIsReq {
+
+		// TODO: Ta bort, hjälp för alex.
 		fmt.Println("New line", diffLine.NewLineno)
 		fmt.Println("Old line", diffLine.OldLineno)
 		fmt.Println("Num lines", diffLine.NumLines)
-		fmt.Println("Origin GIT_DIFF_LINE_ADD_EOFNL")
 		fmt.Println("Content", diffLine.Content)
-		fmt.Println("")
 
-		// OUTPUT FROM TO LAST LINE:
-		// New line -1
-		// Old line 29
-		// Num lines 2
-		// Origin GIT_DIFF_LINE_ADD_EOFNL
-		// Content
-		// \ No newline at end of file
-	case git.DiffLineDelEOFNL:
-		// Line is deleted at the end of a file? Update req. by decresing the line count?
-		//
-		// OUTPUT FROM TO LAST LINES:
-		// New line 29
-		// Old line -1
-		// Num lines 0
-		// Origin GIT_DIFF_LINE_ADDITION
-		// Content .chronicle
-		//
-		// New line 29
-		// Old line -1
-		// Num lines 2
-		// Origin GIT_DIFF_LINE_DEL_EOFNL
-		// Content
-		// \ No newline at end of file
-	case git.DiffLineFileHdr:
-		log.Fatal("GIT_DIFF_LINE_FILE_HDR")
-	case git.DiffLineHunkHdr:
-		log.Fatal("GIT_DIFF_LINE_HUNK_HDR")
-	case git.DiffLineBinary:
-		log.Fatal("GIT_DIFF_LINE_BINARY")
+		switch diffLine.Origin {
+		case git.DiffLineContext:
+			fmt.Println("Origin Diff Line Context")
+			// Line changed update old one.
+		case git.DiffLineAddition:
+			fmt.Println("Origin Diff Line Add")
+			// If req. commit reference add to that new req.
+			// Add a new start reference
+			if !walker.isStartReqSet {
+				// TODO: Här är jag och arbetar nu. Ska spara ner lines för nya krav.
+				// err := walker.db.DB.Update(func(tx *bolt.Tx) error {
+				// 	walker.currentFileBucket.Put([]byte(diffLine.NewLineno), value []byte)
+				// 	if err != nil {
+				// 		log.Fatal(err)
+				// 	}
+				// 	return err
+				// })
+			}
+		case git.DiffLineDeletion:
+			fmt.Println("Origin Diff Line delete")
+			// Decrese req. which have this line
+		case git.DiffLineContextEOFNL:
+			log.Fatal("GIT_DIFF_LINE_CONTEXT_EOFNL")
+		case git.DiffLineAddEOFNL:
+			fmt.Println("Origin GIT_DIFF_LINE_ADD_EOFNL")
+
+			// OUTPUT FROM TO LAST LINE:
+			// New line -1
+			// Old line 29
+			// Num lines 2
+			// Origin GIT_DIFF_LINE_ADD_EOFNL
+			// Content
+			// \ No newline at end of file
+		case git.DiffLineDelEOFNL:
+			fmt.Println("Origin Diff Line delete end of file NL")
+			// Line is deleted at the end of a file? Update req. by decresing the line count?
+			//
+			// OUTPUT FROM TO LAST LINES:
+			// New line 29
+			// Old line -1
+			// Num lines 0
+			// Origin GIT_DIFF_LINE_ADDITION
+			// Content .chronicle
+			//
+			// New line 29
+			// Old line -1
+			// Num lines 2
+			// Origin GIT_DIFF_LINE_DEL_EOFNL
+			// Content
+			// \ No newline at end of file
+		case git.DiffLineFileHdr:
+			log.Fatal("GIT_DIFF_LINE_FILE_HDR")
+		case git.DiffLineHunkHdr:
+			log.Fatal("GIT_DIFF_LINE_HUNK_HDR")
+		case git.DiffLineBinary:
+			log.Fatal("GIT_DIFF_LINE_BINARY")
+		}
+		fmt.Println("")
 	}
 	return nil
 }
@@ -246,127 +293,4 @@ func commitReferences() {
 		}
 	}
 	fmt.Println("")
-}
-
-func randString(n int) string {
-	const alphanum = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-	var bytes = make([]byte, n)
-	rand.Read(bytes)
-	for i, b := range bytes {
-		bytes[i] = alphanum[b%byte(len(alphanum))]
-	}
-	return string(bytes)
-}
-
-// Stash is a replication of the stash feature in git but do create real branches.
-// Existing branches will be overwritten
-func Stash(branchName string, repo *git.Repository) error {
-	fmt.Println("Stashing files to branch:", branchName)
-	head, err := repo.Head()
-	if err != nil {
-		log.Fatal(err)
-	}
-	headCommit, err := repo.LookupCommit(head.Target())
-	if err != nil {
-		log.Fatal(err)
-	}
-	// True means that existing branch will be overwritten. Use with care.
-	branch, err := repo.CreateBranch(branchName, headCommit, true)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Get the index also called the staging area.
-	idx, err := repo.Index()
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Writes the current states of all files to the index (staging).
-	// TODO: Check if this needs to be written as "./*"
-	root := []string{"*"}
-	err = idx.UpdateAll(root, UpdateIndexStashCallback)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// This generate a tree from current index.
-	// https://libgit2.github.com/libgit2/#HEAD/group/index/git_index_write_tree
-	treeID, err := idx.WriteTree()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// This will write the new modified index to the git database
-	err = idx.Write()
-	if err != nil {
-		panic(err)
-	}
-
-	// Get the generated tree represantation of the above id
-	tree, err := repo.LookupTree(treeID)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Get the parent commit in this case the branch
-	commitTarget, err := repo.LookupCommit(branch.Target())
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Commit the tree as child to branch commit (commitTarget).
-	// Update the /refs/heads so we can find back to this commit by only knowing repo name.
-	message := "Stashing commit by chronicle"
-	_, err = repo.CreateCommit("refs/heads/"+branchName, walker.commitSignature, walker.commitSignature, message, tree, commitTarget)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return err
-
-	// 	# ... hack hack hack ...
-	// $ git checkout -b my_wip
-	// $ git commit -a -m "WIP"
-	// $ git checkout master
-	// $ edit emergency fix
-	// $ git commit -a -m "Fix in a hurry"
-	// $ git checkout my_wip
-	// $ git reset --soft HEAD^
-	// # ... continue hacking ...
-}
-
-// UnStash moves content of a branch back to index, staging area.
-// Existing branches will be overwritten
-func UnStash(branchName string, repo *git.Repository) {
-	// See if branch exist
-	branch, err := repo.LookupBranch(branchName, git.BranchLocal)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Temporary save the current head
-	currentReference, err := repo.Head()
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Set the stashed branch as head
-	repo.SetHead("refs/heads/" + branchName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Check out and write over the staging area.
-	err = repo.CheckoutHead(walker.checkoutOptions)
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Reset the head to one before
-	repo.SetHead(currentReference.Name())
-	if err != nil {
-		log.Fatal(err)
-	}
-	// Delete the old Stash-branch
-	err = branch.Delete()
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-// UpdateIndexStashCallback always return 0 -> updates all files
-func UpdateIndexStashCallback(path string, pathspec string) int {
-	return 0
 }
