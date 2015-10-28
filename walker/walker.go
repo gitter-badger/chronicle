@@ -1,6 +1,7 @@
 package walker
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -27,11 +28,11 @@ type Walker struct {
 	commitSignature *git.Signature
 
 	// Temporary variable used by the recursive functions
-	currentCommit     git.Commit
-	currentFileIsReq  bool
-	currentFileBucket *bolt.Bucket
-	commitReference   []string // Reference from commit msg to requirments
-	isStartReqSet     bool
+	currentCommit         git.Commit
+	currentFileReferences *database.FileReferences
+	currentFileIsReq      bool
+	commitReference       []string // Reference from commit msg to requirments
+	isStartReqSet         bool
 }
 
 // Wraper for regex matcher for .req file
@@ -152,6 +153,8 @@ func crawlRepo(c *git.Commit) error {
 		}
 		diff.ForEach(updateReqFromEachFile, walker.diffDetail)
 	}
+	// Store last file FileReferences
+	storePreviousFileReference()
 	return nil
 }
 
@@ -170,24 +173,13 @@ func indexReqFiles(s string, entry *git.TreeEntry) int {
 }
 
 func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEachHunkCallback, error) {
+	// Store previous file FileReferences to DB. Due callbackpattern this needs to be done here.
+	storePreviousFileReference()
 	walker.currentFileIsReq = walker.reqMatchString(diffDelta.NewFile.Path)
 	if !walker.currentFileIsReq {
-		// Create new filebucket
-		// Root-bucket -> Commit-bucket (date) -> File-bucket -> (Key:Line, Value: [req]
-		err := walker.db.DB.Update(func(tx *bolt.Tx) error {
-			var err error
-			bRoot := tx.Bucket([]byte("RootBucket"))
-			bucketID := walker.currentCommit.Author().When.Format(time.RFC3339)
-			bCurrent := bRoot.Bucket([]byte(bucketID))
-			walker.currentFileBucket, err = bCurrent.CreateBucket([]byte(diffDelta.NewFile.Path))
-			if err != nil {
-				log.Fatal(err)
-			}
-			return err
-		})
-		if err != nil {
-			panic(err)
-		}
+		fr := database.NewFileReferences(diffDelta.NewFile.Path, make(map[int][]database.Reference))
+		fr.Initialized()
+		walker.currentFileReferences = fr
 	}
 	fmt.Println("Old file", diffDelta.OldFile)
 	fmt.Println("New file", diffDelta.NewFile)
@@ -195,44 +187,28 @@ func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEac
 }
 
 func updateReqFromEachHunk(diffHunk git.DiffHunk) (git.DiffForEachLineCallback, error) {
-	// TODO: Ta bort, hjälp för alex.
-	fmt.Println("Hunk Header", diffHunk.Header)
-	fmt.Println("new lines", diffHunk.NewLines)
-	fmt.Println("old lines", diffHunk.OldLines)
-	fmt.Println("New start", diffHunk.NewStart)
-	fmt.Println("Old start", diffHunk.OldStart)
-	fmt.Println("")
-
 	return updateReqFromEachLine, nil
 }
 
 func updateReqFromEachLine(diffLine git.DiffLine) error {
-
+	caseLineAddition := false
 	if !walker.currentFileIsReq {
-
-		// TODO: Ta bort, hjälp för alex.
-		fmt.Println("New line", diffLine.NewLineno)
-		fmt.Println("Old line", diffLine.OldLineno)
-		fmt.Println("Num lines", diffLine.NumLines)
-		fmt.Println("Content", diffLine.Content)
-
 		switch diffLine.Origin {
 		case git.DiffLineContext:
 			fmt.Println("Origin Diff Line Context")
 			// Line changed update old one.
 		case git.DiffLineAddition:
-			fmt.Println("Origin Diff Line Add")
-			// If req. commit reference add to that new req.
-			// Add a new start reference
-			if !walker.isStartReqSet {
-				// TODO: Här är jag och arbetar nu. Ska spara ner lines för nya krav.
-				// err := walker.db.DB.Update(func(tx *bolt.Tx) error {
-				// 	walker.currentFileBucket.Put([]byte(diffLine.NewLineno), value []byte)
-				// 	if err != nil {
-				// 		log.Fatal(err)
-				// 	}
-				// 	return err
-				// })
+			caseLineAddition = true
+			if walker.commitReference != nil {
+				if !walker.isStartReqSet {
+					fmt.Println("Added new start references between lines and requirments, line:", diffLine.NewLineno)
+					var references []database.Reference
+					for _, id := range walker.commitReference {
+						references = append(references, database.Reference{id, database.LineRequirmentStart})
+					}
+					walker.currentFileReferences.LineReferences[diffLine.NewLineno] = references
+					walker.isStartReqSet = true
+				}
 			}
 		case git.DiffLineDeletion:
 			fmt.Println("Origin Diff Line delete")
@@ -273,7 +249,18 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 		case git.DiffLineBinary:
 			log.Fatal("GIT_DIFF_LINE_BINARY")
 		}
-		fmt.Println("")
+
+		if !caseLineAddition {
+			if walker.isStartReqSet {
+				fmt.Println("Added new end references between lines and requirments, line:", diffLine.NewLineno-1)
+				var references []database.Reference
+				for _, id := range walker.commitReference {
+					references = append(references, database.Reference{id, database.LineRequirmentEnd})
+				}
+				walker.currentFileReferences.LineReferences[diffLine.NewLineno-1] = references
+				walker.isStartReqSet = false
+			}
+		}
 	}
 	return nil
 }
@@ -293,4 +280,25 @@ func commitReferences() {
 		}
 	}
 	fmt.Println("")
+}
+
+func storePreviousFileReference() {
+	if walker.currentFileReferences.Initialized() {
+		bytecode, err := json.Marshal(walker.currentFileReferences)
+		if err != nil {
+			log.Fatal(err)
+		}
+		err = walker.db.DB.Update(func(tx *bolt.Tx) error {
+			var err error
+			bRoot := tx.Bucket([]byte("RootBucket"))
+			bucketID := walker.currentCommit.Author().When.Format(time.RFC3339)
+			bCurrent := bRoot.Bucket([]byte(bucketID))
+			err = bCurrent.Put([]byte(walker.currentFileReferences.File), bytecode)
+			if err != nil {
+				log.Fatal(err)
+			}
+			return err
+		})
+		walker.currentFileReferences.Deinitialize()
+	}
 }
