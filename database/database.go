@@ -15,7 +15,7 @@ type Database struct {
 //NewDatabase returns a database object with given configuration files
 func NewDatabase(rootPath string) *Database {
 	d := &Database{}
-	db, err := bolt.Open("."+string(filepath.Separator)+rootPath+".chronicle"+string(filepath.Separator)+"local.db", 0600, nil)
+	db, err := bolt.Open("."+string(filepath.Separator)+rootPath+".git"+string(filepath.Separator)+"chronicle"+string(filepath.Separator)+"local.db", 0600, nil)
 	if err != nil {
 		log.Fatal(err)
 	}

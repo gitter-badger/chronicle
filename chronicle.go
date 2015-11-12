@@ -1,11 +1,8 @@
 package main
 
 import (
-	"bufio"
-	"log"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/Benefactory/chronicle/database"
 	"github.com/Benefactory/chronicle/walker"
@@ -91,40 +88,8 @@ func main() {
 
 func setupChronicle(rootPath string) error {
 	// TODO: Check for git-root repo
-	// Create local database folder
-	os.Mkdir("."+string(filepath.Separator)+rootPath+".chronicle", 0777)
 
-	// Check if the local database is ignored
-	file, err := os.Open("." + string(filepath.Separator) + rootPath + ".gitignore")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			panic(err)
-		}
-	}()
+	os.Mkdir("."+string(filepath.Separator)+rootPath+".git"+string(filepath.Separator)+"chronicle", 0777)
 
-	var b bool
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		b = strings.EqualFold(scanner.Text(), ".chronicle")
-	}
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
-
-	// Update .gitignore file to prevent the local database to be commited.
-	if !b {
-		f, err := os.OpenFile("."+string(filepath.Separator)+rootPath+".gitignore", os.O_APPEND|os.O_WRONLY, 0600)
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-
-		if _, err = f.WriteString("\n# Added by chronicle, ignoring local database \n.chronicle"); err != nil {
-			panic(err)
-		}
-	}
-	return err
+	return nil
 }
