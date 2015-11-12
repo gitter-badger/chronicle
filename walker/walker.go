@@ -5,7 +5,6 @@ import (
 	"log"
 	"path/filepath"
 	"regexp"
-	"time"
 	"unicode/utf8"
 
 	"github.com/Benefactory/chronicle/database"
@@ -26,11 +25,12 @@ type Walker struct {
 	diffDetail      git.DiffDetail
 
 	// Temporary variable used by the recursive functions
-	currentCommit     git.Commit
-	currentFileIsReq  bool
-	currentFileBucket *bolt.Bucket
-	commitReference   []string // Reference from commit msg to requirments
-	isStartReqSet     bool
+	currentCommit        git.Commit
+	currentFileIsReq     bool
+	currentFileReference database.FileReferences
+	commitReference      []string // Reference from commit msg to requirments
+	isFileSaved          bool     // Used to prevent saving data twice
+	isStartReqSet        bool
 }
 
 // Wraper for regex matcher for .req file
@@ -79,6 +79,7 @@ func UpdateRepo(rootPath string, db *database.Database) {
 	fmt.Println("Head commit", headCommit.Id())
 	fmt.Println("")
 
+	walker.isFileSaved = true // Prevent saving nil
 	crawlRepo(headCommit)
 }
 
@@ -87,11 +88,14 @@ func crawlRepo(c *git.Commit) error {
 	// Create a boltdb bucket for each commit. Use time for key to enable sorting.
 	walker.db.DB.Update(func(tx *bolt.Tx) error {
 		bRoot := tx.Bucket([]byte("RootBucket"))
-		bCurrentTime, err := bRoot.CreateBucketIfNotExists([]byte(c.Author().When.Format(time.RFC3339)))
+		_, err := bRoot.CreateBucketIfNotExists([]byte(c.Id().String()))
 		if err != nil {
 			panic(err)
 		}
-		bCurrentTime.Put([]byte("commit"), []byte(c.Id().String()))
+		err = bRoot.Put([]byte(c.Author().When.String()), []byte(c.Id().String()))
+		if err != nil {
+			panic(err)
+		}
 		return err
 	})
 
@@ -157,24 +161,15 @@ func indexReqFiles(s string, entry *git.TreeEntry) int {
 }
 
 func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEachHunkCallback, error) {
+	// Save last files references to boltDB
+	if !walker.isFileSaved {
+		saveLastFileReference()
+	}
+
 	walker.currentFileIsReq = walker.reqMatchString(diffDelta.NewFile.Path)
 	if !walker.currentFileIsReq {
-		// Create new filebucket
-		// Root-bucket -> Commit-bucket (date) -> File-bucket -> (Key:Line, Value: [req]
-		err := walker.db.DB.Update(func(tx *bolt.Tx) error {
-			var err error
-			bRoot := tx.Bucket([]byte("RootBucket"))
-			bucketID := walker.currentCommit.Author().When.Format(time.RFC3339)
-			bCurrent := bRoot.Bucket([]byte(bucketID))
-			walker.currentFileBucket, err = bCurrent.CreateBucket([]byte(diffDelta.NewFile.Path))
-			if err != nil {
-				log.Fatal(err)
-			}
-			return err
-		})
-		if err != nil {
-			panic(err)
-		}
+		lineReferences := make(map[int][]database.Reference)
+		walker.currentFileReference = database.FileReferences{*diffDelta.NewFile.Oid, lineReferences}
 	}
 	fmt.Println("Old file", diffDelta.OldFile)
 	fmt.Println("New file", diffDelta.NewFile)
@@ -182,52 +177,38 @@ func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEac
 }
 
 func updateReqFromEachHunk(diffHunk git.DiffHunk) (git.DiffForEachLineCallback, error) {
-	// TODO: Ta bort, hjälp för alex.
-	fmt.Println("Hunk Header", diffHunk.Header)
-	fmt.Println("new lines", diffHunk.NewLines)
-	fmt.Println("old lines", diffHunk.OldLines)
-	fmt.Println("New start", diffHunk.NewStart)
-	fmt.Println("Old start", diffHunk.OldStart)
-	fmt.Println("")
-
 	return updateReqFromEachLine, nil
 }
 
 func updateReqFromEachLine(diffLine git.DiffLine) error {
 
 	if !walker.currentFileIsReq {
-
-		// TODO: Ta bort, hjälp för alex.
-		fmt.Println("New line", diffLine.NewLineno)
-		fmt.Println("Old line", diffLine.OldLineno)
-		fmt.Println("Num lines", diffLine.NumLines)
-		fmt.Println("Content", diffLine.Content)
-
 		switch diffLine.Origin {
 		case git.DiffLineContext:
-			fmt.Println("Origin Diff Line Context")
+			// fmt.Println("Origin Diff Line Context")
 			// Line changed update old one.
 		case git.DiffLineAddition:
-			fmt.Println("Origin Diff Line Add")
-			// If req. commit reference add to that new req.
-			// Add a new start reference
+			// fmt.Println("Origin Diff Line Add")
+
+			//  Add new references to requirments
 			if !walker.isStartReqSet {
-				// TODO: Här är jag och arbetar nu. Ska spara ner lines för nya krav.
-				// err := walker.db.DB.Update(func(tx *bolt.Tx) error {
-				// 	walker.currentFileBucket.Put([]byte(diffLine.NewLineno), value []byte)
-				// 	if err != nil {
-				// 		log.Fatal(err)
-				// 	}
-				// 	return err
-				// })
+				var references []database.Reference
+				for _, ref := range walker.commitReference {
+					references = append(references, database.Reference{ref, database.LineRequirmentStart})
+				}
+				if references != nil {
+					walker.currentFileReference.LineReferences[diffLine.NewLineno] = references
+				}
+				walker.isStartReqSet = true
 			}
+
 		case git.DiffLineDeletion:
-			fmt.Println("Origin Diff Line delete")
+			// fmt.Println("Origin Diff Line delete")
 			// Decrese req. which have this line
 		case git.DiffLineContextEOFNL:
 			log.Fatal("GIT_DIFF_LINE_CONTEXT_EOFNL")
 		case git.DiffLineAddEOFNL:
-			fmt.Println("Origin GIT_DIFF_LINE_ADD_EOFNL")
+			// fmt.Println("Origin GIT_DIFF_LINE_ADD_EOFNL")
 
 			// OUTPUT FROM TO LAST LINE:
 			// New line -1
@@ -237,7 +218,7 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 			// Content
 			// \ No newline at end of file
 		case git.DiffLineDelEOFNL:
-			fmt.Println("Origin Diff Line delete end of file NL")
+			// fmt.Println("Origin Diff Line delete end of file NL")
 			// Line is deleted at the end of a file? Update req. by decresing the line count?
 			//
 			// OUTPUT FROM TO LAST LINES:
@@ -260,7 +241,6 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 		case git.DiffLineBinary:
 			log.Fatal("GIT_DIFF_LINE_BINARY")
 		}
-		fmt.Println("")
 	}
 	return nil
 }
@@ -280,4 +260,19 @@ func commitReferences() {
 		}
 	}
 	fmt.Println("")
+}
+
+func saveLastFileReference() {
+
+	err := walker.db.DB.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(walker.currentCommit.Id().String()))
+		err := b.Put([]byte(walker.currentFileReference.FileID.String()), []byte("42"))
+		return err
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Prevent the reference to be saved twice
+	walker.isFileSaved = true
+
 }
