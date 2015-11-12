@@ -24,7 +24,6 @@ type Walker struct {
 	diffOptions     *git.DiffOptions
 	checkoutOptions *git.CheckoutOpts
 	diffDetail      git.DiffDetail
-	commitSignature *git.Signature
 
 	// Temporary variable used by the recursive functions
 	currentCommit     git.Commit
@@ -53,12 +52,6 @@ func UpdateRepo(rootPath string, db *database.Database) {
 	}
 	// Set resolution of diffs, 0 = file, 1 = Hunk, 2 = line by line
 	walker.diffDetail = git.DiffDetailLines
-	// Create signature for the walker.
-	walker.commitSignature = &git.Signature{
-		Name:  "Chronicle tool",
-		Email: "chronicle@benefactory.se",
-		When:  time.Now(),
-	}
 	walker.db = db
 
 	db.DB.Update(func(tx *bolt.Tx) error {
@@ -86,12 +79,7 @@ func UpdateRepo(rootPath string, db *database.Database) {
 	fmt.Println("Head commit", headCommit.Id())
 	fmt.Println("")
 
-	err = Stash("ChronicleStash", repo)
-	if err != nil {
-		log.Fatal(err)
-	}
 	crawlRepo(headCommit)
-	UnStash("ChronicleStash", repo)
 }
 
 func crawlRepo(c *git.Commit) error {
@@ -124,18 +112,12 @@ func crawlRepo(c *git.Commit) error {
 	fmt.Println("")
 	fmt.Println("========= CLIMBING UP THE TREE =========")
 	fmt.Println("Current commit:", walker.currentCommit.Id())
-	// Search for .req files
+
 	currentTree, err := c.Tree()
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// Unlike git checkout, it does not move the HEAD commit for you.
-	// https://libgit2.github.com/libgit2/#HEAD/type/git_checkout_strategy_t
-	err = c.Owner().CheckoutTree(currentTree, walker.checkoutOptions)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Search for req files
 	currentTree.Walk(indexReqFiles)
 
 	// Check if there is a commit reference.
@@ -157,7 +139,12 @@ func crawlRepo(c *git.Commit) error {
 
 func indexReqFiles(s string, entry *git.TreeEntry) int {
 	if walker.reqMatchString(entry.Name) {
-		err := requirments.ParseReqFile("./"+s+entry.Name, walker.db, walker.currentCommit.Author().When)
+		blob, err := walker.currentCommit.Owner().LookupBlob(entry.Id)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		err = requirments.ParseReqFile(blob.Contents(), walker.db, walker.currentCommit.Author().When)
 		if err != nil {
 			fmt.Println("")
 			fmt.Println("TOML FORMAT ERROR")

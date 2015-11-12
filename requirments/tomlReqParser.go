@@ -1,8 +1,6 @@
 package requirments
 
 import (
-	"io/ioutil"
-	"os"
 	"time"
 
 	"github.com/Benefactory/chronicle/database"
@@ -11,18 +9,11 @@ import (
 )
 
 // ParseReqFile parse a specific .req file formated with .toml format
-func ParseReqFile(path string, db *database.Database, date time.Time) error {
-	f, err := os.Open(path)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-	buf, err := ioutil.ReadAll(f)
-	if err != nil {
-		panic(err)
-	}
+func ParseReqFile(data []byte, db *database.Database, date time.Time) error {
 	var requirments tomlReq
-	if err := toml.Unmarshal(buf, &requirments); err != nil {
+
+	err := toml.Unmarshal(data, &requirments)
+	if err != nil {
 		return err
 	}
 
