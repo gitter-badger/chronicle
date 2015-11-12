@@ -1,0 +1,147 @@
+# Requirments for `.req` files
+This document contain requirments explaining the purpose and how `.req`-files is used within chronicle.
+
+## Long term goals
+
+### Native support and natural adoption
+
+| Identification | `KKD102DE6`  |
+| :-------------:|:------------:|
+| Status         | elicitated   |
+| Type           | goal         |
+
+#### Description
+`.req` shall be edit and readable without strict requirments of addional toolsets. <br>
+A develeper shall be able to use the `.req` without to much addional effort. <br>
+Eg. Open the .req-files in a common IDE, set syntax highlight or rendering will be enough for basic usage.
+
+#### Why
+Software developer work in a information intensitive are full of standards and tools. <br>
+Adding a new specific format or standard will raise the burden with risk of tools not being used. <br>
+Software requirment management is dependent of wide adoption by develop organization to work well. (Citation needed)
+
+---
+### Requirment graph support
+| Identification | `BHD102DE6`  |
+| :-------------:|:------------:|
+| Status         | elicitated   |
+| Type           | goal         |
+
+#### Description
+Requirments within `.req`-files shall be link able between each other to form a graph. <br>
+A single link can only have one direction and shall be able to contain metadata.
+
+---
+### Uniqeness of requirments
+
+| Identification | `AAD102DE6`  |
+| :-------------:|:------------:|
+| Status         | specified    |
+| Type           | goal         |
+
+#### Description
+All requirment from shall be global uniqe in a distrubuted environment. <br>
+This enforce the system to adopt concept from `UUID` or similar.
+There will be a trade of between statistically uniqeness and useability for the end user.
+
+---
+### Mergeable data-structure for `.req`-files
+
+| Identification | `AAD102DE6`  |
+| :-------------:|:------------:|
+| Status         | specified    |
+| Type           | goal         |
+
+#### Description
+All formats of `.req`-files shall be able to be merged with Git.
+
+---
+## Markdown format
+
+### Markdown version
+| Identification | `BHD102746`  |
+| :-------------:|:------------:|
+| Status         | elicitated   |
+| Type           | format       |
+
+#### Description
+Markdown was invented by John Gruber. Gruber specify the syntax unambiguously and have a limted feature set. <br>
+This limitation have lead to creation of many variants of markdown to extend its feature set and clearify usage.
+
+An initative to merge variants is called  [commonmark](http://commonmark.org/) and have a solid testsuits and many implementations. <br>
+This is example of a golang implementation, [golang-commonmark](https://godoc.org/github.com/golang-commonmark/markdown).
+
+Other interesting initative to look at would be:
+* [Pandoc markdown](http://pandoc.org/README.html#pandocs-markdown) - Have a wider feature set but no golang ref. implementation. Written in Haskel
+* [Mermaid extension]( http://knsv.github.io/mermaid/#mermaid) - This is an interesting addon for displaying graphs and charts. Unfortunately there is lack of desktop editors integration this into markdown. Take a look at this online example, [markdown with Mermaid ](http://tylingsoft.github.io/tutorial.md/#extensions).
+
+#### Specification
+Chronicle is using commonmark as baseformat for markdown `.req`-files.
+
+---
+### Markdown structure
+| Identification | `BHDAAA746`  |
+| :-------------:|:------------:|
+| Status         | elicitated   |
+| Type           | format       |
+
+#### Description
+A `.req`-file formated with markdown should enable versatility for expression but still having structured data. <br>
+Heading lvl 1 and 2 (`#` & `##`) is reserved for organization of the document. <br>
+Text and meta-information how to write or interpret the requirments should be here under heading one and two. <br>
+Also index should be placed under heading ons and two.
+
+#### Specification
+* Level one and two headings and associated paragraph will be ignored when parsing for requirments. <br>
+* Horizontal rules eg. `---` will be ignored while parsing requirments and can freely be used to improve readability of markdown document.
+
+---
+### Markdown requirment structure
+| Identification | `BHD102746`  |
+| :-------------:|:------------:|
+| Status         | elicitated   |
+| Type           | format       |
+
+#### Specification
+* A requirment start with a lvl 3 header (`###`) and a new lvl 1-3 header ends a requirment.
+* The header also describe the common name for the requirment which should be unique.
+* Following the header there is a attribute table which at least contain one row with requirment id.
+* Valid requirment attribute shall be listed in the chronicle configuration file.
+* Requirment attribute which are not listed in configuration file will be ignored and throw warning upon parsing.
+
+$3*2$
+
+( `[]` shall be read as meta-comment)
+```
+### [Common-name]
+| Identification          | [alfanumerical id]    |
+| :----------------------:|:---------------------:|
+| Status                  | Elicitated            |
+| Type                    | Format                |
+| [Requirment attribute]  | [Some text]           |
+| [Requirment attribute]  | [Some text]           |
+| [...]                   | [...]                 |
+
+#### [Requirment attribute]
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+##### This is just an internal header
+Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
+Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+
+#### [Requirment attribute]
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+
+| Requirment graph     |
+| :-------------------:|
+| [graph relation type]| [alfanumerical id] | [text describing the relation]
+| [graph relation type]| [alfanumerical id] | [text describing the relation]
+| [...]                | [...]              | [...]
+
+```
+| Requirment graph     |
+| :-------------------:|:-----------:|:----------------------------------------:|
+| Related_to           | `BHD102746` | Explains structure of markdown requirment|
+---
