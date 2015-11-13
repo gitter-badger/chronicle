@@ -1,6 +1,7 @@
 package requirments
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/Benefactory/chronicle/database"
@@ -18,6 +19,8 @@ func ParseReqFile(data []byte, db *database.Database, date time.Time) error {
 	}
 
 	for _, value := range requirments.Component {
+		fmt.Println("ID ", value.Id)
+		fmt.Println("Title ", value.Title)
 		err = db.DB.Update(func(tx *bolt.Tx) error {
 			bRoot := tx.Bucket([]byte("RootBucket"))
 			bCurrent := bRoot.Bucket([]byte(date.Format(time.RFC3339)))

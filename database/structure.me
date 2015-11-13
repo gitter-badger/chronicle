@@ -1,6 +1,6 @@
 graph TD
     startHere --> |RootBucket| RootBucket
     RootBucket -->|"[Commit SHA]"| CommitBucket
-    RootBucket -->|"[Commit time (RFC3339)]"| SHA(("Commit SHA (string)"))
+    RootBucket -->|"[Commit time <br> (Go time default)]"| SHA(("Commit SHA <br> (string)"))
     CommitBucket -->|"[req-id]"| req(("gobs encoded <br> (requirment struct)"))
     CommitBucket -->|"[file-oid]"|ref(("gobs encoded <br> (FileReferences struct)"))

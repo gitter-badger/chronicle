@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/Benefactory/chronicle/database"
-	"github.com/Benefactory/chronicle/requirments"
 	"github.com/boltdb/bolt"
 	"github.com/libgit2/git2go"
 )
@@ -28,6 +27,7 @@ type Walker struct {
 	currentCommit        git.Commit
 	currentFileIsReq     bool
 	currentFileReference database.FileReferences
+	currentAddLine       int
 	commitReference      []string // Reference from commit msg to requirments
 	isFileSaved          bool     // Used to prevent saving data twice
 	isStartReqSet        bool
@@ -143,29 +143,33 @@ func crawlRepo(c *git.Commit) error {
 
 func indexReqFiles(s string, entry *git.TreeEntry) int {
 	if walker.reqMatchString(entry.Name) {
-		blob, err := walker.currentCommit.Owner().LookupBlob(entry.Id)
+		_, err := walker.currentCommit.Owner().LookupBlob(entry.Id)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		err = requirments.ParseReqFile(blob.Contents(), walker.db, walker.currentCommit.Author().When)
-		if err != nil {
-			fmt.Println("")
-			fmt.Println("TOML FORMAT ERROR")
-			fmt.Println("File:\"", s+entry.Name, "\" ignored")
-			fmt.Println(err)
-			fmt.Println("")
-		}
+		// err = requirments.ParseReqFile(blob.Contents(), walker.db, walker.currentCommit.Author().When)
+		// if err != nil {
+		// 	fmt.Println("")
+		// 	fmt.Println("TOML FORMAT ERROR")
+		// 	fmt.Println("File:\"", s+entry.Name, "\" ignored")
+		// 	fmt.Println(err)
+		// 	fmt.Println("")
+		// }
 	}
 	return 0
 }
 
 func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEachHunkCallback, error) {
+	// Last New LineRequirmentEnd from previous file
+	if walker.isStartReqSet {
+		addLineEnd()
+	}
 	// Save last files references to boltDB
 	if !walker.isFileSaved {
 		saveLastFileReference()
 	}
-
+	walker.currentAddLine = 0 // Reset add line count for every file
 	walker.currentFileIsReq = walker.reqMatchString(diffDelta.NewFile.Path)
 	if !walker.currentFileIsReq {
 		lineReferences := make(map[int][]database.Reference)
@@ -185,29 +189,43 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 	if !walker.currentFileIsReq {
 		switch diffLine.Origin {
 		case git.DiffLineContext:
+			// New LineRequirmentEnd
+			if walker.isStartReqSet {
+				addLineEnd()
+			}
+
 			// fmt.Println("Origin Diff Line Context")
 			// Line changed update old one.
 		case git.DiffLineAddition:
-			// fmt.Println("Origin Diff Line Add")
-
-			//  Add new references to requirments
-			if !walker.isStartReqSet {
-				var references []database.Reference
-				for _, ref := range walker.commitReference {
-					references = append(references, database.Reference{ref, database.LineRequirmentStart})
+			if walker.currentAddLine != diffLine.NewLineno {
+				// New LineRequirmentEnd
+				if walker.isStartReqSet {
+					addLineEnd()
 				}
-				if references != nil {
-					walker.currentFileReference.LineReferences[diffLine.NewLineno] = references
-				}
-				walker.isStartReqSet = true
+				// New LineRequirmentStart
+				addLineStart(diffLine.NewLineno)
+				// Update line tracking for the new block
+				walker.currentAddLine = diffLine.NewLineno + 1
+			} else {
+				// Increase add block count
+				walker.currentAddLine++
 			}
 
 		case git.DiffLineDeletion:
+			if walker.isStartReqSet {
+				addLineEnd()
+			}
 			// fmt.Println("Origin Diff Line delete")
 			// Decrese req. which have this line
 		case git.DiffLineContextEOFNL:
+			if walker.isStartReqSet {
+				addLineEnd()
+			}
 			log.Fatal("GIT_DIFF_LINE_CONTEXT_EOFNL")
 		case git.DiffLineAddEOFNL:
+			if walker.isStartReqSet {
+				addLineEnd()
+			}
 			// fmt.Println("Origin GIT_DIFF_LINE_ADD_EOFNL")
 
 			// OUTPUT FROM TO LAST LINE:
@@ -218,6 +236,9 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 			// Content
 			// \ No newline at end of file
 		case git.DiffLineDelEOFNL:
+			if walker.isStartReqSet {
+				addLineEnd()
+			}
 			// fmt.Println("Origin Diff Line delete end of file NL")
 			// Line is deleted at the end of a file? Update req. by decresing the line count?
 			//
@@ -235,10 +256,19 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 			// Content
 			// \ No newline at end of file
 		case git.DiffLineFileHdr:
+			if walker.isStartReqSet {
+				addLineEnd()
+			}
 			log.Fatal("GIT_DIFF_LINE_FILE_HDR")
 		case git.DiffLineHunkHdr:
+			if walker.isStartReqSet {
+				addLineEnd()
+			}
 			log.Fatal("GIT_DIFF_LINE_HUNK_HDR")
 		case git.DiffLineBinary:
+			if walker.isStartReqSet {
+				addLineEnd()
+			}
 			log.Fatal("GIT_DIFF_LINE_BINARY")
 		}
 	}
@@ -248,7 +278,7 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 func commitReferences() {
 	msg := walker.currentCommit.Message()
 	reqs := walker.commitMatcher.FindStringSubmatch(msg)
-
+	walker.commitReference = []string{}
 	fmt.Println("Commit message:", msg)
 	for _, ref := range reqs {
 		if utf8.RuneCountInString(ref) == 9 {
@@ -263,7 +293,6 @@ func commitReferences() {
 }
 
 func saveLastFileReference() {
-
 	err := walker.db.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(walker.currentCommit.Id().String()))
 		err := b.Put([]byte(walker.currentFileReference.FileID.String()), []byte("42"))
@@ -274,5 +303,30 @@ func saveLastFileReference() {
 	}
 	// Prevent the reference to be saved twice
 	walker.isFileSaved = true
+}
 
+func addLineStart(line int) {
+	// New LineRequirmentStart
+	var references []database.Reference
+	for _, ref := range walker.commitReference {
+		references = append(references, database.Reference{ref, database.LineRequirmentStart})
+		fmt.Println("Adding LineRequirmentStart: [reference, line]", ref, line)
+	}
+	if references != nil {
+		walker.currentFileReference.LineReferences[line] = references
+		walker.isStartReqSet = true
+	}
+}
+
+func addLineEnd() {
+	// New LineRequirmentEnd
+	var references []database.Reference
+	for _, ref := range walker.commitReference {
+		references = append(references, database.Reference{ref, database.LineRequirmentEnd})
+		fmt.Println("Adding LineRequirmentEnd: [reference, line]", ref, walker.currentAddLine-1)
+	}
+	if references != nil {
+		walker.currentFileReference.LineReferences[walker.currentAddLine-1] = references
+		walker.isStartReqSet = false
+	}
 }
