@@ -1,6 +1,8 @@
 package walker
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -24,13 +26,18 @@ type Walker struct {
 	diffDetail      git.DiffDetail
 
 	// Temporary variable used by the recursive functions
-	currentCommit        git.Commit
-	currentFileIsReq     bool
-	currentFileReference database.FileReferences
-	currentAddLine       int
-	commitReference      []string // Reference from commit msg to requirments
-	isFileSaved          bool     // Used to prevent saving data twice
-	isStartReqSet        bool
+	rootBucket               *bolt.Bucket
+	currentCommit            git.Commit
+	currentFileIsReq         bool
+	currentFileReference     database.FileReferences
+	currentAddLine           int
+	currentCommitBucket      *bolt.Bucket
+	parentCommitBucket       *bolt.Bucket
+	parentFileReference      database.FileReferences
+	parentFileReferenceValid bool
+	commitReference          []string // Reference from commit msg to requirments
+	isFileSaved              bool     // Used to prevent saving data twice
+	isStartReqSet            bool
 }
 
 // Wraper for regex matcher for .req file
@@ -85,7 +92,7 @@ func UpdateRepo(rootPath string, db *database.Database) {
 
 func crawlRepo(c *git.Commit) error {
 	walker.currentCommit = *c
-	// Create a boltdb bucket for each commit. Use time for key to enable sorting.
+	// Create a boltdb bucket for each commit.
 	walker.db.DB.Update(func(tx *bolt.Tx) error {
 		bRoot := tx.Bucket([]byte("RootBucket"))
 		_, err := bRoot.CreateBucketIfNotExists([]byte(c.Id().String()))
@@ -126,18 +133,29 @@ func crawlRepo(c *git.Commit) error {
 
 	// Check if there is a commit reference.
 	commitReferences()
+
 	// Create a diff between current and parent tree
 	for i := uint(0); i < c.ParentCount(); i++ {
 		parrentTree, err := c.Parent(i).Tree()
 		if err != nil {
 			log.Fatal(err)
 		}
-		diff, err := c.Owner().DiffTreeToTree(parrentTree, currentTree, walker.diffOptions)
-		if err != nil {
-			log.Fatal(err)
-		}
-		diff.ForEach(updateReqFromEachFile, walker.diffDetail)
+
+		// Open bucket to copy last commits refs
+		walker.db.DB.Update(func(tx *bolt.Tx) error {
+			walker.rootBucket = tx.Bucket([]byte("RootBucket"))
+			walker.parentCommitBucket = walker.rootBucket.Bucket([]byte(c.Parent(i).Id().String()))
+			walker.currentCommitBucket = walker.rootBucket.Bucket([]byte(c.Id().String()))
+			diff, err := c.Owner().DiffTreeToTree(parrentTree, currentTree, walker.diffOptions)
+			if err != nil {
+				log.Fatal(err)
+			}
+			diff.ForEach(updateReqFromEachFile, walker.diffDetail)
+
+			return nil
+		})
 	}
+
 	return nil
 }
 
@@ -167,14 +185,36 @@ func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEac
 	}
 	// Save last files references to boltDB
 	if !walker.isFileSaved {
-		saveLastFileReference()
+		saveFileReference()
 	}
+
+	if walker.parentCommitBucket != nil { // Root commits have no parents
+
+		byteData := walker.parentCommitBucket.Get([]byte(diffDelta.OldFile.Oid.String()))
+		fmt.Println("Parent commit bucket exist")
+		fmt.Println("ByteData", byteData)
+		if byteData != nil {
+			buffer := bytes.NewBuffer(byteData)
+			dec := gob.NewDecoder(buffer)
+			err := dec.Decode(&walker.parentFileReference)
+			if err != nil {
+				log.Fatal("decode:", err)
+			}
+			fmt.Println("Decode success", walker.parentFileReference.FileID)
+			walker.parentFileReferenceValid = true
+		} else {
+			walker.parentFileReferenceValid = false
+		}
+	}
+
 	walker.currentAddLine = 0 // Reset add line count for every file
 	walker.currentFileIsReq = walker.reqMatchString(diffDelta.NewFile.Path)
 	if !walker.currentFileIsReq {
 		lineReferences := make(map[int][]database.Reference)
 		walker.currentFileReference = database.FileReferences{*diffDelta.NewFile.Oid, lineReferences}
+		walker.isFileSaved = false
 	}
+
 	fmt.Println("Old file", diffDelta.OldFile)
 	fmt.Println("New file", diffDelta.NewFile)
 	return updateReqFromEachHunk, nil
@@ -194,7 +234,8 @@ func updateReqFromEachLine(diffLine git.DiffLine) error {
 				addLineEnd()
 			}
 
-			// fmt.Println("Origin Diff Line Context")
+			// fmt.Println("Origin Diff Line Context ", diffLine.NewLineno)
+			// fmt.Println(diffLine.OldLineno)
 			// Line changed update old one.
 		case git.DiffLineAddition:
 			if walker.currentAddLine != diffLine.NewLineno {
@@ -292,17 +333,27 @@ func commitReferences() {
 	fmt.Println("")
 }
 
-func saveLastFileReference() {
-	err := walker.db.DB.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(walker.currentCommit.Id().String()))
-		err := b.Put([]byte(walker.currentFileReference.FileID.String()), []byte("42"))
-		return err
-	})
+func saveFileReference() error {
+
+	var data bytes.Buffer // foo := bufio.NewWriter(&data)?
+	enc := gob.NewEncoder(&data)
+	err := enc.Encode(walker.currentFileReference)
+	if err != nil {
+		log.Fatal("encode:", err)
+		fmt.Println("Encode Error")
+	}
+	err = walker.currentCommitBucket.Put([]byte(walker.currentFileReference.FileID.String()), data.Bytes())
+	if err != nil {
+		log.Fatal("Put error:", err)
+	}
+
+	fmt.Println("Saved fileReferences with id:", walker.currentFileReference.FileID.String())
 	if err != nil {
 		log.Fatal(err)
 	}
 	// Prevent the reference to be saved twice
 	walker.isFileSaved = true
+	return err
 }
 
 func addLineStart(line int) {

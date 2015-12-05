@@ -56,6 +56,20 @@ There will be a trade of between statistically uniqeness and useability for the 
 All formats of `.req`-files shall be able to be merged with Git.
 
 ---
+### Semantic difference and merge
+
+| Identification | `AAD101236`  |
+| :-------------:|:------------:|
+| Status         | elicitated    |
+| Type           | Feature         |
+
+#### Description
+When merging and lookup difference between .req files it would be good if the markdown syntax is correct.
+Eg. Using semtantic merge. This is an experimental javascript implementation: https://github.com/nono/mddiff
+
+
+
+---
 ## Markdown format
 
 ### Markdown version
