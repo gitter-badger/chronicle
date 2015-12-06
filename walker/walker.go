@@ -30,10 +30,11 @@ type Walker struct {
 	currentCommit            git.Commit
 	currentFileIsReq         bool
 	currentFileReference     database.FileReferences
+	parentFileReference      database.FileReferences
 	currentAddLine           int
 	currentCommitBucket      *bolt.Bucket
 	parentCommitBucket       *bolt.Bucket
-	parentFileReference      database.FileReferences
+	copiedFileReferences     map[string]bool
 	parentFileReferenceValid bool
 	commitReference          []string // Reference from commit msg to requirments
 	isFileSaved              bool     // Used to prevent saving data twice
@@ -143,6 +144,7 @@ func crawlRepo(c *git.Commit) error {
 
 		// Open bucket to copy last commits refs
 		walker.db.DB.Update(func(tx *bolt.Tx) error {
+			walker.copiedFileReferences = make(map[string]bool)
 			walker.rootBucket = tx.Bucket([]byte("RootBucket"))
 			walker.parentCommitBucket = walker.rootBucket.Bucket([]byte(c.Parent(i).Id().String()))
 			walker.currentCommitBucket = walker.rootBucket.Bucket([]byte(c.Id().String()))
@@ -152,6 +154,16 @@ func crawlRepo(c *git.Commit) error {
 			}
 			diff.ForEach(updateReqFromEachFile, walker.diffDetail)
 
+			// Copy FileReferences from parent CommitBucket to current CommitBucket.
+			// Exclude all files already handled in diffs
+			c := walker.parentCommitBucket.Cursor()
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				oid := string(k[:])
+				if _, ok := walker.copiedFileReferences[oid]; !ok {
+					// Copy fileReference
+					walker.currentCommitBucket.Put(k, v)
+				}
+			}
 			return nil
 		})
 	}
@@ -179,6 +191,8 @@ func indexReqFiles(s string, entry *git.TreeEntry) int {
 }
 
 func updateReqFromEachFile(diffDelta git.DiffDelta, nbr float64) (git.DiffForEachHunkCallback, error) {
+	// Add this file to copy ignore list
+	walker.copiedFileReferences[diffDelta.OldFile.Oid.String()] = true
 	// Last New LineRequirmentEnd from previous file
 	if walker.isStartReqSet {
 		addLineEnd()
